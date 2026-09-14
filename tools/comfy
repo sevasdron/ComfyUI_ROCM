@@ -89,6 +89,8 @@ cmd_run() {
     # который лезет в $HOME/.cache (например, uv у ComfyUI-Manager при security-check
     # на повторном запуске — на первом старте баз для сравнения ещё нет, а начиная
     # со второго он реально дёргает `uv pip freeze`), падает с Permission denied.
+    # </dev/null: иначе pasta (сеть rootless podman) наследует терминал и ловит отказ SELinux
+    # на /dev/ptmx — безвредный, но с алертом на рабочем столе при каждом запуске из консоли.
     # main.py — абсолютным путём: у сторонних образов (например, kyuz0 для сверки
     # схемы) WORKDIR может быть не /opt/ComfyUI (у него — .../custom_nodes, хвост
     # от их сборки), а относительный "python main.py" тогда не находит файл.
@@ -101,7 +103,7 @@ cmd_run() {
         -e HOME=/data \
         -e HF_HOME=/cache/hf \
         "$IMG" python /opt/ComfyUI/main.py --listen 0.0.0.0 --port "$PORT" \
-            --base-directory /data --models-directory /models "${args[@]}" >/dev/null
+            --base-directory /data --models-directory /models "${args[@]}" >/dev/null </dev/null
     echo "$CONTAINER: $IMG → http://127.0.0.1:$PORT  (данные: $DATA)"
 }
 
