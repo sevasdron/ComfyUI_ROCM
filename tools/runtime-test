@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Смоук-тест GPU в образе: torch видит gfx1151, matmul и SDPA считаются на GPU.
+#
+#   bash tools/runtime-test                          # образ из versions.env
+#   bash tools/runtime-test docker.io/kyuz0/amd-strix-halo-comfyui:latest   # для сравнения
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+# shellcheck disable=SC1091
+source "$ROOT/runtime/versions.env"
+IMG="${1:-$IMAGE:$TAG}"
+
+# Устройства и группы как у будущего tools/comfy run: только /dev/kfd и /dev/dri, без privileged.
+podman run --rm \
+    --device /dev/kfd --device /dev/dri \
+    --group-add keep-groups \
+    --security-opt label=disable \
+    -v "$ROOT/tests:/tests:ro" \
+    "$IMG" python /tests/smoke/gpu_check.py

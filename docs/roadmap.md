@@ -6,12 +6,17 @@
 
 Эта папка: железо, текущее состояние, архитектура, стратегия обновлений, реестр правок.
 
-## Этап 1 — runtime
+## Этап 1 — runtime ✅ (14.09.2026)
 
-- `runtime/Containerfile` по рецепту kyuz0, версии torch/ROCm как в текущем образе.
-- Кэш колёс в `var/wheelhouse/`, генерация `constraints.txt`.
-- Проверка: torch видит gfx1151, простые операции и SDPA на GPU, скорость не хуже текущего образа
-  (один и тот же эталонный воркфлоу).
+- `runtime/Containerfile` + `runtime/versions.env`: Fedora 44, Python 3.13, torch `2.14.0a0+rocm7.15.0a20260721`
+  ([ADR-0004](decisions/0004-runtime-fedora-stable-wheelhouse.md)).
+- `tools/wheelhouse-sync` → `var/wheelhouse` (26 колёс, 1.6 ГБ); `tools/runtime-build` ставит только из него
+  (`--no-index`) и пишет `runtime/constraints.txt`; в образе — `PIP_CONSTRAINT`/`UV_CONSTRAINT`.
+- Образ `localhost/strix-runtime:rocm7.15.0a20260721-torch2.14` — **7.29 ГБ** (kyuz0: 16.2 ГБ).
+- `tools/runtime-test` (`tests/smoke/gpu_check.py`) на нашем образе и kyuz0: gfx1151 виден, matmul bf16
+  36.9 vs 37.2 TFLOPS, SDPA 0.73 vs 0.73 мс, flash/efficient доступны, точность одинаковая.
+  Без `privileged`: только `/dev/kfd`, `/dev/dri`, `--group-add keep-groups`.
+- Сравнение скорости на эталонном воркфлоу перенесено на этап 2 (нужен ComfyUI).
 
 ## Этап 2 — ядро и инструмент обновления
 
@@ -42,10 +47,10 @@
 
 | Что | Объём |
 |---|---|
-| runtime (без дубликата `chmod -R /opt`, который есть у kyuz0: 7.3 ГБ из 16.2) | ~9 ГБ |
+| runtime (без дубликата `chmod -R /opt`, который есть у kyuz0: 7.3 ГБ из 16.2) | 7.3 ГБ (факт) |
 | ядро ComfyUI × 2–3 версии | 3–4 ГБ |
 | модпак `main` × 3 (stable / candidate / prev) | 6–12 ГБ |
-| кэш колёс torch/ROCm | ~2 ГБ на версию |
+| кэш колёс torch/ROCm (`var/wheelhouse`, на NTFS) | 1.6 ГБ на версию (факт) |
 | **рабочий режим** | **~25–35 ГБ** |
 | пик: сборки + devel для TRELLIS.2 | ~45 ГБ |
 | пик на время переезда (старый toolbox как резерв, +21 ГБ) | 55–65 ГБ |
@@ -56,7 +61,7 @@
 
 | Вопрос | Когда решать |
 |---|---|
-| ОС runtime: Fedora 45 prerelease как у kyuz0 или стабильная версия с Python 3.13 | этап 1 |
+| ~~ОС runtime: Fedora 45 prerelease как у kyuz0 или стабильная версия с Python 3.13~~ — Fedora 44 stable, [ADR-0004](decisions/0004-runtime-fedora-stable-wheelhouse.md) | решено 14.09 |
 | Хранить форки нод на GitHub (какой аккаунт) или в локальных bare-репозиториях | этап 3 |
 | Remote для репозитория (git уже инициализирован в `/mnt/code/ComfyUI_ROCM`) | до этапа 1 |
 | Эталонные воркфлоу: какие именно и какой бюджет времени на прогон | этап 2–3 |

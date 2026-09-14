@@ -1,0 +1,12 @@
+amd-torch-device-gfx1151==2.14.0a0+rocm7.15.0a20260721
+amd-torch-device-gfx115x==2.14.0a0+rocm7.15.0a20260721
+amd-torchvision-device-gfx1151==0.29.0a0+rocm7.15.0a20260721
+rocm-bootstrap==0.2.0
+rocm-sdk-core==7.15.0a20260721
+rocm-sdk-device-gfx1151==7.15.0a20260721
+rocm-sdk-libraries==7.15.0a20260721
+rocm==7.15.0a20260721
+torch==2.14.0a0+rocm7.15.0a20260721
+torchaudio==2.11.0.2+rocm7.15.0a20260728
+torchvision==0.29.0a0+rocm7.15.0a20260721
+triton==3.8.0+git4774139f.rocm7.15.0a20260721

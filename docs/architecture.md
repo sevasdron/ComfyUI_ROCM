@@ -123,7 +123,8 @@ ComfyUI_ROCM/
   docs/                       ← эта документация
   runtime/
     Containerfile             ← слой 1
-    versions.env              ← ROCM/TORCH версии, индекс колёс
+    versions.env              ← база, Python, версии torch/ROCm, индекс колёс, имя образа
+    constraints.txt           ← снимок закреплённого стека (пишет tools/runtime-build)
   core/
     Containerfile             ← слой 2, ARG COMFYUI_REF
     patches/                  ← патчи ядра ComfyUI
@@ -144,8 +145,13 @@ ComfyUI_ROCM/
     schema/                   ← сравнение /object_info между версиями
     workflows/                ← прогон эталонных воркфлоу через API
   tools/
-    comfy                     ← единая команда: build / run / update / promote / rollback
+    wheelhouse-sync           ← скачать колёса стека по versions.env в var/wheelhouse
+    runtime-build             ← собрать слой 1 из wheelhouse
+    runtime-test              ← GPU-смоук образа (tests/smoke/gpu_check.py)
+    comfy                     ← единая команда: build / run / update / promote / rollback (этап 2)
 ```
+
+Скрипты запускаются как `bash tools/<имя>`: NTFS не хранит бит исполняемости.
 
 ## Что переносим из текущей установки
 

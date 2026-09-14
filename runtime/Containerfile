@@ -1,0 +1,74 @@
+# Слой 1 — runtime: ОС, Python 3.13, venv с torch/ROCm под gfx1151, ffmpeg, шрифты.
+# ComfyUI сюда НЕ входит (слой 2, core/Containerfile).
+#
+# Сборка: bash tools/runtime-build   (читает runtime/versions.env, подключает var/wheelhouse)
+# Колёса ставятся только из /wheelhouse (--no-index): сборка не зависит от индекса AMD,
+# который уже не хранит линейку rocm 7.15. Сначала: bash tools/wheelhouse-sync.
+
+ARG BASE_IMAGE=registry.fedoraproject.org/fedora:44
+FROM ${BASE_IMAGE}
+
+ARG PYTHON=3.13
+ARG GFX=gfx1151
+ARG TORCH_VERSION
+ARG TORCHVISION_VERSION
+ARG TORCHAUDIO_VERSION
+ARG TRITON_VERSION
+
+# Системные пакеты. Набор kyuz0 минус vim/dialog, плюс шрифты.
+# gcc/python-devel остаются: у части зависимостей нод нет колёс под cp313, они собираются при
+# сборке модпака. Тяжёлый тулчейн для ROCm (rocm-sdk-devel, ninja, cmake) — в отдельном devel-образе.
+RUN dnf -y install --setopt=install_weak_deps=False --nodocs \
+        python${PYTHON} python${PYTHON}-devel \
+        gcc gcc-c++ make binutils git rsync libatomic libdrm-devel ca-certificates curl \
+        ffmpeg-free \
+        dejavu-fonts-all liberation-fonts-all google-noto-sans-fonts google-noto-serif-fonts \
+        google-noto-sans-mono-fonts google-noto-emoji-fonts adwaita-fonts-all \
+    && dnf clean all && rm -rf /var/cache/dnf /var/cache/libdnf5
+
+# P1: Comfyroll «CR Select Font» читает плоско os.listdir("/usr/share/fonts/truetype") по *.ttf.
+# Делаем эту папку из ссылок на все установленные ttf.
+RUN mkdir -p /usr/share/fonts/truetype \
+    && find /usr/share/fonts -type f -name '*.ttf' -not -path '/usr/share/fonts/truetype/*' \
+         -exec ln -sf {} /usr/share/fonts/truetype/ \; \
+    && echo "fonts in truetype/: $(ls /usr/share/fonts/truetype | wc -l)"
+
+ENV VIRTUAL_ENV=/opt/venv \
+    PATH=/opt/venv/bin:/usr/local/bin:/usr/bin \
+    PIP_NO_CACHE_DIR=1
+
+# venv без chmod -R: у kyuz0 этот chmod дублирует 7.3 ГБ. Владелец root, всем — чтение.
+# Верхние слои ставят пакеты при сборке (root); в рантайме venv только читается.
+RUN python${PYTHON} -m venv /opt/venv \
+    && pip install --no-index --find-links /wheelhouse --upgrade pip setuptools wheel
+
+# torch[device-gfx1151] тянет amd-torch-device-gfx1151 + gfx115x и rocm[libraries] с rocm-sdk-device-gfx1151
+# — ровно то, что стоит у kyuz0. Всё из /wheelhouse, ничего из сети.
+RUN pip install --no-index --find-links /wheelhouse \
+        "torch[device-${GFX}]==${TORCH_VERSION}" \
+        "torchvision[device-${GFX}]==${TORCHVISION_VERSION}" \
+        "torchaudio==${TORCHAUDIO_VERSION}" \
+        "triton==${TRITON_VERSION}" \
+    && pip check
+
+# P11: закреплённый стек torch/ROCm. PIP_CONSTRAINT/UV_CONSTRAINT видят все верхние слои
+# и любой pip внутри контейнера — подменить torch при установке нод нельзя.
+RUN pip freeze | grep -E '^(torch|triton|rocm|amd-torch)[A-Za-z0-9_.-]*==' | sort > /opt/constraints.txt \
+    && echo "--- /opt/constraints.txt" && cat /opt/constraints.txt
+ENV PIP_CONSTRAINT=/opt/constraints.txt \
+    UV_CONSTRAINT=/opt/constraints.txt
+
+# Переменные ROCm от kyuz0 (у него — только в /etc/profile.d, здесь как ENV, чтобы работали без login-shell):
+#   AOTRITON — flash/SDPA-ядра для gfx1151; HIPBLASLT — быстрый GEMM (rocm-libraries#3913, #3879).
+ENV TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 \
+    TORCH_BLAS_PREFER_HIPBLASLT=1
+
+# Быстрая самопроверка без GPU: импорт и версии.
+RUN python -c "import torch, torchvision, torchaudio, triton; print(torch.__version__, torchvision.__version__, torchaudio.__version__, triton.__version__)"
+
+LABEL org.opencontainers.image.title="strix-runtime" \
+      org.opencontainers.image.description="Fedora ${PYTHON} + torch ${TORCH_VERSION} for ${GFX} (Strix Halo)" \
+      org.opencontainers.image.source="https://github.com/sevasdron/ComfyUI_ROCM"
+
+WORKDIR /opt
+CMD ["/bin/bash"]

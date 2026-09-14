@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Собирает слой 1 (runtime) по runtime/versions.env, колёса берёт из var/wheelhouse.
+#
+#   bash tools/runtime-build            # -> $IMAGE:$TAG и $IMAGE:latest
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+# shellcheck disable=SC1091
+source "$ROOT/runtime/versions.env"
+
+WH="$ROOT/var/wheelhouse"
+if [ -z "$(ls "$WH" 2>/dev/null | grep -E '^torch-')" ]; then
+    echo "var/wheelhouse пуст — сначала: bash tools/wheelhouse-sync" >&2
+    exit 1
+fi
+
+# -v: wheelhouse монтируется в сборку с хоста (var/ вне контекста и вне git).
+# label=disable: NTFS без SELinux-меток.
+podman build \
+    --security-opt label=disable \
+    -v "$WH:/wheelhouse:ro" \
+    --build-arg BASE_IMAGE="$BASE_IMAGE" \
+    --build-arg PYTHON="$PYTHON" \
+    --build-arg GFX="$GFX" \
+    --build-arg TORCH_VERSION="$TORCH_VERSION" \
+    --build-arg TORCHVISION_VERSION="$TORCHVISION_VERSION" \
+    --build-arg TORCHAUDIO_VERSION="$TORCHAUDIO_VERSION" \
+    --build-arg TRITON_VERSION="$TRITON_VERSION" \
+    -t "$IMAGE:$TAG" -t "$IMAGE:latest" \
+    -f "$ROOT/runtime/Containerfile" "$ROOT"
+
+# Снимок закреплённых версий — в репозиторий, чтобы было видно без запуска образа.
+podman run --rm "$IMAGE:$TAG" cat /opt/constraints.txt > "$ROOT/runtime/constraints.txt"
+echo "--- runtime/constraints.txt обновлён"
+podman images --format '{{.Repository}}:{{.Tag}}  {{.Size}}' "$IMAGE"
