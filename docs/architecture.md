@@ -127,7 +127,11 @@ ComfyUI_ROCM/
     constraints.txt           ← снимок закреплённого стека (пишет tools/runtime-build)
   core/
     Containerfile             ← слой 2, ARG COMFYUI_REF
-    patches/                  ← патчи ядра ComfyUI
+    versions.env              ← runtime-образ, репозиторий и ref ComfyUI по умолчанию
+    apply-patches.sh          ← наложение patches/ при сборке (applied / in upstream / conflict)
+    check-torch-stack.py      ← контроль: pip не сдвинул стек из /opt/constraints.txt
+    check-core-import.py      ← импорт ядра при сборке (без GPU)
+    patches/                  ← патчи ядра ComfyUI (0001-growmask-cpu.patch, …)
   modpacks/
     main/
       modpack.yaml            ← базовое ядро, ключи запуска, порт, исключения pip
@@ -141,15 +145,20 @@ ComfyUI_ROCM/
     wheels/                   ← собранные нативные пакеты (o_voxel, cumesh, …)
     backups/                  ← копии user/ перед promote
   tests/
-    smoke/                    ← импорт нод, GPU, старт сервера
-    schema/                   ← сравнение /object_info между версиями
-    workflows/                ← прогон эталонных воркфлоу через API
+    smoke/gpu_check.py        ← torch видит GPU, matmul/SDPA/conv (для runtime)
+    schema/dump.py, diff.py   ← снимок /object_info и сравнение: удалённые ноды, ломающие изменения входов
+    workflows/                ← прогон эталонных воркфлоу через API (этап 3)
   tools/
     wheelhouse-sync           ← скачать колёса стека по versions.env в var/wheelhouse
     runtime-build             ← собрать слой 1 из wheelhouse
     runtime-test              ← GPU-смоук образа (tests/smoke/gpu_check.py)
-    comfy                     ← единая команда: build / run / update / promote / rollback (этап 2)
+    comfy                     ← build core / run / stop / log / status / smoke / schema diff
+                                (update / promote / rollback — этап 3)
 ```
+
+Запуск контейнера (`tools/comfy run`): `--device /dev/kfd --device /dev/dri --group-add keep-groups
+--userns=keep-id`, порт только на `127.0.0.1`, `HOME=/data` (иначе `uv` у Manager не может писать кэш),
+`main.py` абсолютным путём. Снимки схем и логи smoke — в `var/schema`, `var/logs`.
 
 Скрипты запускаются как `bash tools/<имя>`: NTFS не хранит бит исполняемости.
 

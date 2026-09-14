@@ -18,15 +18,25 @@
   Без `privileged`: только `/dev/kfd`, `/dev/dri`, `--group-add keep-groups`.
 - Сравнение скорости на эталонном воркфлоу перенесено на этап 2 (нужен ComfyUI).
 
-## Этап 2 — ядро и инструмент обновления
+## Этап 2 — ядро ✅ (14.09.2026)
 
-- `core/Containerfile` с `ARG COMFYUI_REF`, серия патчей (P9).
-- `tools/comfy build | run | update | promote | rollback`.
-- `tests/smoke` и `tests/schema` (diff `/object_info`).
-- Проверка на чистом ComfyUI 0.35.1 без кастом-нод, порт 8100.
+- `core/Containerfile` (`ARG COMFYUI_REF`: тег/ветка/SHA, shallow-clone с `.git`), `core/versions.env`,
+  патчи через `core/apply-patches.sh` (applied / in upstream / conflict), `core/patches/0001-growmask-cpu.patch` (P9).
+  Проверки при сборке: стек torch не сдвинулся (`check-torch-stack.py`), ядро импортируется (`check-core-import.py`).
+- Образ `localhost/comfy-core:v0.35.1` — 8.9 ГБ (runtime 7.29 + 1.6 ГБ зависимостей ядра); сборка ~5 мин.
+- `tools/comfy build core | run | stop | log | status | smoke | schema diff`; запуск по ADR-0003
+  (`/data`, `/models` RO, `/cache/hf`, без privileged, `--userns=keep-id`), ключи запуска прежние.
+- Smoke на чистом 0.35.1 с Manager, порт 8100: GPU `AMD Radeon 8060S`, `/` 200, 927 нод, без трейсбеков.
+- `tests/schema`: первый боевой diff 0.31.0 → 0.35.1: 9 нод удалено (облачные API), 103 добавлено,
+  9 ломающих изменений (типы/порядок входов у `CreateVideo`, `SaveVideo`, `MiniMaxH3ReferenceToVideo`, Meshy/Tripo).
+- Найдено по дороге: под `--userns=keep-id` нужны `git config --system safe.directory` (иначе Manager не видит
+  ревизию) и `HOME=/data` (иначе `uv` у Manager падает на втором старте).
+- Перенесено в этап 3: `update / promote / rollback` — они работают с тегами модпака и бэкапом `user/`,
+  без модпака `main` их не на чем проверить.
 
 ## Этап 3 — модпак `main`
 
+- `tools/comfy update | promote | rollback`, `modpack.yaml`, сборка образа модпака из `nodes.lock`.
 - `nodes.lock` из текущих 42 каталогов: сопоставить 18 нод без git с репозиториями/версиями реестра,
   решить судьбу лишних (`comfyui_nvidia_rtx_nodes`, отключённый `_mtp_ND`).
 - Форки нод с правками P3, P4, P5, P1.
@@ -67,4 +77,4 @@
 | Эталонные воркфлоу: какие именно и какой бюджет времени на прогон | этап 2–3 |
 | VRAM в BIOS 32 ГБ или минимум + большой GTT | после этапа 1, нужен замер |
 | Отказ от `privileged` и монтирования всего `/home` — не сломает ли ноды, пишущие вне своих папок | этап 3 |
-| Кэш HuggingFace: какой путь сейчас реально используется (`/mnt/data/huggingface` или `~/.cache`) и работают ли его симлинки на NTFS | этап 2 |
+| Кэш HuggingFace: какой путь сейчас реально используется (`/mnt/data/huggingface` или `~/.cache`) и работают ли его симлинки на NTFS. `tools/comfy` пока монтирует `/mnt/data/huggingface` (переопределяется `HF_CACHE`) | этап 3, при первом воркфлоу с HF-моделью |

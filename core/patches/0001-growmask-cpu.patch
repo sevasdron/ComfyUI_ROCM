@@ -1,0 +1,13 @@
+diff --git a/comfy_extras/nodes_mask.py b/comfy_extras/nodes_mask.py
+index 956f0b5..ec010e1 100644
+--- a/comfy_extras/nodes_mask.py
++++ b/comfy_extras/nodes_mask.py
+@@ -373,7 +373,7 @@ class GrowMask(IO.ComfyNode):
+         mask = mask.reshape((-1, mask.shape[-2], mask.shape[-1]))
+         out = []
+         for m in mask:
+-            output = m.numpy()
++            output = m.cpu().numpy()
+             for _ in range(abs(expand)):
+                 if expand < 0:
+                     output = scipy.ndimage.grey_erosion(output, footprint=kernel)

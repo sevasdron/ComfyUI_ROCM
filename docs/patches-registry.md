@@ -16,7 +16,7 @@
 | P6 | Sage Attention на AMD не работает, у ноды нет выключателя | KJNodes `MiniMaxH3MemoryEfficientSageAttentionPatch` | workflow | 7 | — | Bypass в воркфлоу; опционально — вход-выключатель в форке KJNodes |
 | P7 | Два пакета регистрируют `LLMTextProcessor`, форк сдвигает входы | `_mtp_ND` | node | 9 | — | в модпаке только один из пакетов; форк с MTP — под своим ID класса |
 | P8 | Обрыв связей LoRA-ноды в Krea2/Flux2 | воркфлоу `ND_Krea2_Ultimate_TI2I_v1.4` и производные | workflow | 10 | авторский воркфлоу | исправленные копии в `workflows/` модпака |
-| P9 | GrowMask: `m.numpy()` на GPU-тензоре при `--gpu-only` | ComfyUI `comfy_extras/nodes_mask.py:376` | core | 11 | **не исправлено в v0.35.1** | `core/patches/0001-growmask-cpu.patch`; кандидат в PR upstream |
+| P9 | GrowMask: `m.numpy()` на GPU-тензоре при `--gpu-only` | ComfyUI `comfy_extras/nodes_mask.py:376` | core | 11 | **не исправлено в v0.35.1** | **сделано** (14.09): `core/patches/0001-growmask-cpu.patch`, накладывается при сборке ядра; кандидат в PR upstream |
 | P10 | `--disable-smart-memory`, `--cache-none` сняты | строка запуска | launch | 11 | — | ключи в `modpack.yaml`; для тяжёлых видео — опциональный профиль |
 | P11 | torch защищён от подмены при установке нод | `PIP_CONSTRAINT` / `UV_CONSTRAINT` | runtime | — | — | **сделано в runtime** (14.09): `/opt/constraints.txt` + `ENV` в образе, копия `runtime/constraints.txt` |
 

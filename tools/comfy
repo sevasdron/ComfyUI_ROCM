@@ -1,0 +1,185 @@
+#!/usr/bin/env bash
+# tools/comfy — сборка и запуск слоёв ComfyUI (ADR-0001/0003).
+#
+#   bash tools/comfy build core [REF]            ядро comfy-core:<REF> (REF по умолчанию — core/versions.env)
+#   bash tools/comfy run NAME [опции] [-- ключи]  контейнер comfy-NAME, данные ~/ComfyUI/NAME → /data
+#   bash tools/comfy stop NAME | log NAME | status
+#   bash tools/comfy smoke NAME [опции]          run → проверки → снимок схемы → stop
+#   bash tools/comfy schema diff OLD.json NEW.json
+#
+# Опции run/smoke:
+#   --image IMG   образ (по умолчанию для NAME=core: comfy-core:<COMFYUI_REF>)
+#   --port P      порт на хосте и в контейнере (по умолчанию 8100)
+#   --manager     включить ComfyUI-Manager (--enable-manager --enable-manager-legacy-ui)
+#   -- ...        всё после «--» уходит в main.py вместо ключей по умолчанию
+#
+# Этап 3 добавит: update / promote / rollback (работают с тегами модпака и бэкапом user/).
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+# shellcheck disable=SC1091
+source "$ROOT/core/versions.env"
+
+# Хостовые пути (ADR-0003). Переопределяются переменными окружения.
+COMFY_HOME="${COMFY_HOME:-$HOME/ComfyUI}"                       # ~/ComfyUI/<NAME> → /data
+MODELS_DIR="${MODELS_DIR:-/mnt/data/AI_Models/ComfyUI}"        # → /models, только чтение
+HF_CACHE="${HF_CACHE:-/mnt/data/huggingface}"                  # → /cache/hf
+# Ключи запуска по умолчанию — те же, что в ~/bin/start_comfy_manager (не терять!).
+COMFY_ARGS="${COMFY_ARGS:---disable-mmap --gpu-only --bf16-vae}"
+
+die() { echo "comfy: $*" >&2; exit 1; }
+
+# Общие ключи podman: GPU без privileged, свой uid внутри (файлы в /data — наши),
+# NTFS-монтирования без SELinux-меток.
+podman_common() {
+    echo --device /dev/kfd --device /dev/dri --group-add keep-groups \
+         --userns=keep-id --security-opt label=disable
+}
+
+cmd_build() {
+    local what=${1:-}; shift || true
+    [ "$what" = core ] || die "build: пока только 'core' (модпаки — этап 3)"
+    local ref=${1:-$COMFYUI_REF}
+    local tag=${ref//\//-}          # ветку с '/' в тег не положить
+    podman build \
+        --build-arg RUNTIME_IMAGE="$RUNTIME_IMAGE" \
+        --build-arg COMFYUI_REPO="$COMFYUI_REPO" \
+        --build-arg COMFYUI_REF="$ref" \
+        -t "$IMAGE:$tag" \
+        -f "$ROOT/core/Containerfile" "$ROOT"
+    podman run --rm "$IMAGE:$tag" cat /opt/comfy-core.env
+    podman images --format '{{.Repository}}:{{.Tag}}  {{.Size}}' "$IMAGE"
+}
+
+# Разбор опций run/smoke → переменные NAME IMG PORT MANAGER EXTRA
+parse_run_opts() {
+    NAME=${1:-}; shift || true
+    [ -n "$NAME" ] || die "нужно имя (core или модпак)"
+    IMG=""; PORT=8100; MANAGER=0; EXTRA=()
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --image) IMG=$2; shift 2 ;;
+            --port) PORT=$2; shift 2 ;;
+            --manager) MANAGER=1; shift ;;
+            --) shift; EXTRA=("$@"); break ;;
+            *) die "неизвестная опция $1" ;;
+        esac
+    done
+    if [ -z "$IMG" ]; then
+        [ "$NAME" = core ] || die "для '$NAME' укажи --image (образы модпаков — этап 3)"
+        IMG="$IMAGE:${COMFYUI_REF//\//-}"
+    fi
+    DATA="$COMFY_HOME/$NAME"
+    CONTAINER="comfy-$NAME"
+}
+
+cmd_run() {
+    parse_run_opts "$@"
+    podman container exists "$CONTAINER" && die "контейнер $CONTAINER уже есть — сначала: comfy stop $NAME"
+    mkdir -p "$DATA"/{custom_nodes,user,input,output,temp}
+    [ -d "$MODELS_DIR" ] || die "нет папки моделей $MODELS_DIR"
+    mkdir -p "$HF_CACHE"
+
+    local args=()
+    if [ ${#EXTRA[@]} -gt 0 ]; then args=("${EXTRA[@]}"); else read -r -a args <<<"$COMFY_ARGS"; fi
+    [ "$MANAGER" -eq 1 ] && args+=(--enable-manager --enable-manager-legacy-ui)
+
+    # HOME=/data: под --userns=keep-id у UID хоста нет записи в /etc/passwd образа,
+    # podman сам назначает HOME = WORKDIR (/opt/ComfyUI), а он root-owned. Без явного
+    # HOME на смонтированный (и потому доступный на запись) /data любой инструмент,
+    # который лезет в $HOME/.cache (например, uv у ComfyUI-Manager при security-check
+    # на повторном запуске — на первом старте баз для сравнения ещё нет, а начиная
+    # со второго он реально дёргает `uv pip freeze`), падает с Permission denied.
+    # main.py — абсолютным путём: у сторонних образов (например, kyuz0 для сверки
+    # схемы) WORKDIR может быть не /opt/ComfyUI (у него — .../custom_nodes, хвост
+    # от их сборки), а относительный "python main.py" тогда не находит файл.
+    # shellcheck disable=SC2046
+    podman run -d --name "$CONTAINER" $(podman_common) \
+        -p "127.0.0.1:$PORT:$PORT" \
+        -v "$DATA:/data" \
+        -v "$MODELS_DIR:/models:ro" \
+        -v "$HF_CACHE:/cache/hf" \
+        -e HOME=/data \
+        -e HF_HOME=/cache/hf \
+        "$IMG" python /opt/ComfyUI/main.py --listen 0.0.0.0 --port "$PORT" \
+            --base-directory /data --models-directory /models "${args[@]}" >/dev/null
+    echo "$CONTAINER: $IMG → http://127.0.0.1:$PORT  (данные: $DATA)"
+}
+
+cmd_stop() {
+    local c="comfy-${1:?имя}"
+    podman container exists "$c" || { echo "$c не запущен"; return 0; }
+    podman stop -t 15 "$c" >/dev/null && podman rm "$c" >/dev/null && echo "$c остановлен"
+}
+
+cmd_log() { local n=${1:?имя}; shift; podman logs "$@" "comfy-$n" 2>&1; }   # comfy log core -f
+
+cmd_status() {
+    podman ps -a --filter name='^comfy-' --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
+}
+
+wait_port() {  # $1 порт, $2 контейнер, $3 таймаут
+    for ((i = 0; i < $3; i++)); do
+        curl -fs "http://127.0.0.1:$1/system_stats" >/dev/null 2>&1 && return 0
+        podman container exists "$2" && [ "$(podman inspect -f '{{.State.Running}}' "$2")" = true ] || return 1
+        sleep 1
+    done
+    return 1
+}
+
+cmd_smoke() {
+    parse_run_opts "$@"
+    local fail=0 log
+    log="$ROOT/var/logs/smoke-$NAME-$(date +%Y%m%d-%H%M%S).log"
+    mkdir -p "$ROOT/var/logs" "$ROOT/var/schema"
+
+    cmd_run "$@"
+    echo "== ожидание сервера (до 240 с)"
+    if wait_port "$PORT" "$CONTAINER" 240; then echo "   сервер поднялся"; else echo "   ПРОВАЛ: сервер не поднялся"; fail=1; fi
+    podman logs "$CONTAINER" >"$log" 2>&1
+
+    if [ "$fail" -eq 0 ]; then
+        echo "== GPU"
+        local dev
+        dev=$(curl -fs "http://127.0.0.1:$PORT/system_stats" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["system"]["comfyui_version"], "|", d["devices"][0]["name"], "|", d["devices"][0]["type"], "| vram_total", d["devices"][0]["vram_total"]//2**30, "GiB")')
+        echo "   $dev"
+        grep -q "cuda" <<<"$dev" || { echo "   ПРОВАЛ: устройство не cuda/ROCm"; fail=1; }
+
+        echo "== frontend"
+        local code
+        code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/")
+        [ "$code" = 200 ] && echo "   / → 200" || { echo "   ПРОВАЛ: / → $code"; fail=1; }
+
+        echo "== схема нод"
+        local snap="$ROOT/var/schema/${IMG##*/}.json"; snap=${snap//:/_}
+        python3 "$ROOT/tests/schema/dump.py" "http://127.0.0.1:$PORT" "$snap" || fail=1
+    fi
+
+    echo "== лог"
+    if grep -qiE "IMPORT FAILED|Traceback" "$log"; then
+        echo "   ПРОВАЛ: ошибки импорта/трейсбеки:"; grep -iE "IMPORT FAILED|Traceback" "$log" | head -5 | sed 's/^/     /'; fail=1
+    else
+        echo "   без IMPORT FAILED и трейсбеков"
+    fi
+    grep -iE "^\s*\[?(ERROR|WARNING)" "$log" | head -5 | sed 's/^/   ! /' || true
+
+    cmd_stop "$NAME"
+    echo
+    [ "$fail" -eq 0 ] && echo "ИТОГ: всё чисто ($log)" || echo "ИТОГ: есть проблемы — лог: $log"
+    return "$fail"
+}
+
+cmd_schema() {
+    [ "${1:-}" = diff ] || die "schema: diff OLD.json NEW.json"
+    shift; python3 "$ROOT/tests/schema/diff.py" "$@"
+}
+
+case "${1:-}" in
+    build)  shift; cmd_build "$@" ;;
+    run)    shift; cmd_run "$@" ;;
+    stop)   shift; cmd_stop "$@" ;;
+    log)    shift; cmd_log "$@" ;;
+    status) cmd_status ;;
+    smoke)  shift; cmd_smoke "$@" ;;
+    schema) shift; cmd_schema "$@" ;;
+    *) sed -n '2,20p' "$0"; exit 1 ;;
+esac
