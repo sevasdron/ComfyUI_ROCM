@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Управление нашей сборкой с рабочего стола (аналог ~/bin/comfyctl для старого toolbox).
+#   bash tools/comfyctl start | stop | restart | status | log
+# Контейнер comfy-<NAME> из tools/comfy; порт 8100; Manager включён.
+set -uo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+NAME=${COMFY_NAME:-core}
+PORT=${COMFY_PORT:-8100}
+URL="http://127.0.0.1:$PORT"
+TIMEOUT=240
+
+msg() { echo "$*"; command -v notify-send >/dev/null && notify-send -a "ComfyUI ROCm Halo" "ComfyUI ROCm Halo" "$*"; }
+port_up() { curl -fs "$URL/system_stats" >/dev/null 2>&1; }
+running() { podman container exists "comfy-$NAME" 2>/dev/null && [ "$(podman inspect -f '{{.State.Running}}' "comfy-$NAME")" = true ]; }
+
+do_start() {
+    if port_up; then msg "Уже работает — открываю $URL"; xdg-open "$URL" >/dev/null 2>&1 & return 0; fi
+    running || podman container exists "comfy-$NAME" && bash "$ROOT/tools/comfy" stop "$NAME" >/dev/null 2>&1
+    bash "$ROOT/tools/comfy" run "$NAME" --port "$PORT" --manager || { msg "Не смог запустить контейнер comfy-$NAME"; return 1; }
+    for ((i = 0; i < TIMEOUT; i++)); do
+        port_up && { msg "ComfyUI ROCm Halo поднялся на $URL"; xdg-open "$URL" >/dev/null 2>&1 & return 0; }
+        running || break
+        sleep 1
+    done
+    msg "ComfyUI ROCm Halo не поднялся за ${TIMEOUT}с — лог: bash tools/comfyctl log"
+    return 1
+}
+
+do_stop() {
+    if ! podman container exists "comfy-$NAME" 2>/dev/null; then msg "ComfyUI ROCm Halo уже остановлен"; return 0; fi
+    bash "$ROOT/tools/comfy" stop "$NAME" >/dev/null 2>&1 && msg "ComfyUI ROCm Halo остановлен" || { msg "Не смог остановить comfy-$NAME"; return 1; }
+}
+
+case "${1:-}" in
+    start)   do_start ;;
+    stop)    do_stop ;;
+    restart) do_stop; do_start ;;
+    status)  bash "$ROOT/tools/comfy" status; port_up && echo "порт $PORT: слушает → $URL" || echo "порт $PORT: свободен" ;;
+    log)     bash "$ROOT/tools/comfy" log "$NAME" "${@:2}" ;;
+    *) echo "usage: comfyctl start|stop|restart|status|log"; exit 1 ;;
+esac
