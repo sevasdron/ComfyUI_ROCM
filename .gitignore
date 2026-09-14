@@ -1,0 +1,11 @@
+# Всё пересоздаваемое: кэш колёс, собранные колёса, бэкапы user/, логи сборок
+/var/
+
+__pycache__/
+*.pyc
+.venv/
+
+# Windows
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/

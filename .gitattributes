@@ -1,0 +1,9 @@
+# Раздел общий с Windows: в репозитории всегда LF,
+# иначе CRLF ломает bash-скрипты и Containerfile внутри контейнера.
+* text=auto eol=lf
+
+*.patch  -text
+*.whl    binary
+*.png    binary
+*.jpg    binary
+*.webp   binary
