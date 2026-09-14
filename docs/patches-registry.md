@@ -19,7 +19,8 @@
 | P9 | GrowMask: `m.numpy()` на GPU-тензоре при `--gpu-only` | ComfyUI `comfy_extras/nodes_mask.py:376` | core | 11 | **не исправлено в v0.35.1** | **сделано** (14.09): `core/patches/0001-growmask-cpu.patch`, накладывается при сборке ядра; кандидат в PR upstream |
 | P10 | `--disable-smart-memory`, `--cache-none` сняты | строка запуска | launch | 11 | — | ключи в `modpack.yaml`; для тяжёлых видео — опциональный профиль |
 | P11 | torch защищён от подмены при установке нод | `PIP_CONSTRAINT` / `UV_CONSTRAINT` | runtime | — | — | **сделано в runtime** (14.09): `/opt/constraints.txt` + `ENV` в образе, копия `runtime/constraints.txt` |
-| P12 | BakeTextureFromVoxel: `voxel_colors.numpy()` на bf16-тензоре (`--bf16-vae`), numpy не знает bfloat16 | ComfyUI `comfy_extras/nodes_mesh_postprocess.py:418` | core | — | **не исправлено в master** (14.09) | `core/patches/0002-mesh-bake-bf16-numpy.patch` (`.float()` перед `.numpy()`); кандидат в PR upstream |
+| P12 | BakeTextureFromVoxel: `voxel_colors.numpy()` на bf16-тензоре (`--bf16-vae`), numpy не знает bfloat16 | ComfyUI `comfy_extras/nodes_mesh_postprocess.py:418` | core | — | **не исправлено в master** (14.09) | **снято 14.09**: вместо патча — нода `RH Cast to float32` из пака ROCm Halo (`comfyui-rocm-halo`) после `VaeDecodeTextureTrellis`; пак дописывает подсказку в текст ошибки. Патч — кандидат в PR upstream |
+| P13 | TRELLIS.2: текстурный VAE отдаёт цвета вокселей в bf16 (`--bf16-vae`), дальше по цепочке `.numpy()` падает (MeshToFile3D, PaintMesh…) | ComfyUI `comfy_extras/nodes_trellis2.py:239` | core | — | **не исправлено в master** (14.09) | **снято 14.09**: то же, что P12 — нода `RH Cast to float32`. Правка `voxel.feats.float()` у источника — кандидат в PR upstream |
 
 ## Как добавлять
 

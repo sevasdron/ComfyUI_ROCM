@@ -36,6 +36,8 @@
 
 ## Этап 3 — модпак `main`
 
+- **Начат 14.09**: собственный пак `comfyui-rocm-halo` («ROCm Halo», Node API V3, без JS), первая нода
+  `RH Cast to float32` вместо патчей ядра P12/P13. Пока локальный git в `~/ComfyUI/core/custom_nodes/`, хостинг — позже.
 - `tools/comfy update | promote | rollback`, `modpack.yaml`, сборка образа модпака из `nodes.lock`.
 - `nodes.lock` из текущих 42 каталогов: сопоставить 18 нод без git с репозиториями/версиями реестра,
   решить судьбу лишних (`comfyui_nvidia_rtx_nodes`, отключённый `_mtp_ND`).
@@ -73,8 +75,9 @@
 |---|---|
 | ~~ОС runtime: Fedora 45 prerelease как у kyuz0 или стабильная версия с Python 3.13~~ — Fedora 44 stable, [ADR-0004](decisions/0004-runtime-fedora-stable-wheelhouse.md) | решено 14.09 |
 | Хранить форки нод на GitHub (какой аккаунт) или в локальных bare-репозиториях | этап 3 |
-| Remote для репозитория (git уже инициализирован в `/mnt/code/ComfyUI_ROCM`) | до этапа 1 |
+| ~~Remote для репозитория~~ — public github.com/sevasdron/ComfyUI_ROCM | решено 14.09 |
 | Эталонные воркфлоу: какие именно и какой бюджет времени на прогон | этап 2–3 |
 | VRAM в BIOS 32 ГБ или минимум + большой GTT | после этапа 1, нужен замер |
+| ~~Nodes 2.0 (Vue-рендер) и Node API V3: что делать с нодами~~ — [ADR-0005](decisions/0005-frontend-nodes2-and-node-api-v3.md): в stable выключен, свои ноды на V3 | решено 14.09 |
 | Отказ от `privileged` и монтирования всего `/home` — не сломает ли ноды, пишущие вне своих папок | этап 3 |
 | Кэш HuggingFace: какой путь сейчас реально используется (`/mnt/data/huggingface` или `~/.cache`) и работают ли его симлинки на NTFS. `tools/comfy` пока монтирует `/mnt/data/huggingface` (переопределяется `HF_CACHE`) | этап 3, при первом воркфлоу с HF-моделью |
