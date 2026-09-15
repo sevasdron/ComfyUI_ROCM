@@ -82,6 +82,7 @@ ComfyUI ожидает от `--base-directory`, поэтому она монти
     custom_nodes/         ← ноды: git-клоны/форки, правятся прямо здесь
     user/                 ← настройки, воркфлоу, comfyui.db
     user-candidate/       ← копия user/ для кандидата обновления (tools/comfy update; --user-directory)
+    bin/                  ← внешние бинарники нод (llama.cpp для LLM-text-processor, P3)
     input/
     output/
     temp/

@@ -10,7 +10,7 @@
 |---|---|---|---|---|---|---|
 | P1 | Шрифты: нода читает Debian-путь `/usr/share/fonts/truetype` | Comfyroll `CR Select Font` | runtime / node | 1 | не исправлено | **сделано в runtime** (14.09): пакеты шрифтов Fedora + `/usr/share/fonts/truetype/` из ссылок; позже — патч поиска шрифтов в форке |
 | P2 | `pedalboard` 0.9.25 даёт SIGILL при импорте, роняет весь ComfyUI | crt-nodes | node | 2 | колесо не исправлено | исключить `pedalboard` из зависимостей модпака; без него отключается только AudioCompressor |
-| P3 | Блокировка Linux в `_platform_spec()` + поиск локального `llama-cli` | ComfyUI-LLM-text-processor | node | 3 | не исправлено | форк; `llama.cpp` — в образ модпака или runtime |
+| P3 | Блокировка Linux в `_platform_spec()` + поиск локального `llama-cli` | ComfyUI-LLM-text-processor | node | 3 | не исправлено (65983de) | **сделано в `main`** (15.09): `modpacks/main/patches/llm-text-processor-linux.patch` в `nodes.lock`; `llama-cli` b10472 (CPU) — `~/ComfyUI/main/bin/llama.cpp/current` (путь от каталога ноды: `/data/bin/…`) |
 | P4 | Апскейлер возвращает латент на CPU, `torch.cat` падает в конце прогона | Comfyui_Minimax_h3_latent_Upscaler_ND | node | 4 | не исправлено | форк, 2 файла |
 | P5 | Предпросмотр: NVENC → добавлен libx264 перед WebP | comfyui-kjnodes (без git) | node | 5 | не исправлено | форк KJNodes; обновляется часто — патч держать минимальным |
 | P6 | Sage Attention на AMD не работает, у ноды нет выключателя | KJNodes `MiniMaxH3MemoryEfficientSageAttentionPatch` | workflow | 7 | — | Bypass в воркфлоу; опционально — вход-выключатель в форке KJNodes |

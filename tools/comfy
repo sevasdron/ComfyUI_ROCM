@@ -10,9 +10,11 @@
 #   bash tools/comfy sync NAME [--apply]           сверить ~/ComfyUI/NAME/custom_nodes с nodes.lock (--apply: клонировать/переключить)
 #   bash tools/comfy node add NAME URL [--name N] [--ref R]   нода → custom_nodes и nodes.lock (или --local DIR)
 #   bash tools/comfy node bump NAME NODE [REF]     перевести ноду на REF (по умолчанию origin/HEAD), обновить nodes.lock
+#   bash tools/comfy node patch NAME NODE FILE     патч modpacks/NAME/patches/FILE → nodes.lock и в каталог ноды
 #   bash tools/comfy update NAME [--to REF|latest] ядро REF → модпак :candidate → smoke на port+1 с копией user/ → diff схемы
 #   bash tools/comfy promote NAME                  бэкап user/ → candidate→stable, stable→prev, core: в modpack.yaml
 #   bash tools/comfy rollback NAME [--user latest|ФАЙЛ]   stable↔prev; --user: вернуть user/ из бэкапа
+#   bash tools/comfy workflow deps ФАЙЛ.json [...]  каких нод нет в схеме main и из каких пакетов они (tools/workflow-deps.py)
 #
 # NAME = core (голое ядро, данные ~/ComfyUI/core) или модпак из modpacks/NAME (порт, ключи, Manager — из modpack.yaml).
 # Опции run/smoke:
@@ -224,6 +226,14 @@ wait_port() {  # $1 порт, $2 контейнер, $3 таймаут
 
 # Снимок схемы кладём под именем образа: var/schema/<repo>_<tag>.json.
 schema_snap() { local s="$ROOT/var/schema/${1##*/}.json"; echo "${s//:/_}"; }
+# Перенос снимка схемы между тегами: нормализованный .json и сырой .object_info.json (workflow deps).
+copy_snap() {
+    local from to; from=$(schema_snap "$1"); to=$(schema_snap "$2")
+    [ -f "$from" ] || return 0
+    cp "$from" "$to"
+    [ -f "${from%.json}.object_info.json" ] && cp "${from%.json}.object_info.json" "${to%.json}.object_info.json"
+    return 0
+}
 
 cmd_smoke() {
     parse_run_opts "$@"
@@ -262,7 +272,8 @@ cmd_smoke() {
     if is_modpack "$NAME"; then
         echo "== custom_nodes"
         local loaded
-        loaded=$(grep -cE '[0-9.]+ seconds: /data/custom_nodes/' "$log" || true)   # строки с ANSI-цветом, без ^
+        # строки с ANSI-цветом, без ^; уникальные пути — prestartup-скрипты нод дают повторы
+        loaded=$(grep -oE '[0-9.]+ seconds: /data/custom_nodes/[^[:space:]]+' "$log" | awk '{print $3}' | sort -u | wc -l)
         echo "   загружено пакетов нод: $loaded (в nodes.lock: $MP_NODES)"
     fi
     grep -iE "^\s*\[?(ERROR|WARNING)" "$log" | head -5 | sed 's/^/   ! /' || true
@@ -292,8 +303,8 @@ cmd_node() {
     shift 2
     load_modpack "$name"
     case "$op" in
-        add|bump) python3 "$MODPACK_PY" "$op" "$name" "$COMFY_HOME/$name/custom_nodes" "$@" ;;
-        *) die "node: add или bump" ;;
+        add|bump|patch) python3 "$MODPACK_PY" "$op" "$name" "$COMFY_HOME/$name/custom_nodes" "$@" ;;
+        *) die "node: add | bump | patch" ;;
     esac
 }
 
@@ -368,7 +379,7 @@ cmd_promote() {
     podman tag "$img:candidate" "$img:stable"
     echo "candidate ($ref) → stable"
     # Снимок схемы кандидата становится снимком stable (для следующего diff).
-    [ -f "$(schema_snap "$img:candidate")" ] && cp "$(schema_snap "$img:candidate")" "$(schema_snap "$img:stable")"
+    copy_snap "$img:candidate" "$img:stable"
     if [ -n "$ref" ] && [ "$ref" != "$MP_CORE" ]; then
         sed -i "s/^core: .*/core: $ref/" "$ROOT/modpacks/$name/modpack.yaml"
         echo "modpacks/$name/modpack.yaml: core: $MP_CORE → $ref (закоммить)"
@@ -394,7 +405,7 @@ cmd_rollback() {
     podman untag "$img:rollback-tmp" "$img:rollback-tmp"
     local ref; ref=$(podman inspect -f '{{index .Labels "comfy.core.ref"}}' "$img:stable")
     echo "prev → stable ($ref), прежний stable → prev"
-    [ -f "$(schema_snap "$img:prev")" ] && cp "$(schema_snap "$img:prev")" "$(schema_snap "$img:stable")" || true
+    copy_snap "$img:prev" "$img:stable"
     if [ -n "$ref" ] && [ "$ref" != "$MP_CORE" ]; then
         sed -i "s/^core: .*/core: $ref/" "$ROOT/modpacks/$name/modpack.yaml"
         echo "modpacks/$name/modpack.yaml: core: $MP_CORE → $ref (закоммить)"
@@ -429,5 +440,6 @@ case "${1:-}" in
     update)   shift; cmd_update "$@" ;;
     promote)  shift; cmd_promote "$@" ;;
     rollback) shift; cmd_rollback "$@" ;;
-    *) sed -n '2,29p' "$0"; exit 1 ;;
+    workflow) [ "${2:-}" = deps ] || die "workflow: deps ФАЙЛ.json [...] [--modpack NAME]"; python3 "$ROOT/tools/workflow-deps.py" "${@:3}" ;;
+    *) sed -n '2,31p' "$0"; exit 1 ;;
 esac

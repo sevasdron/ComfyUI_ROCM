@@ -9,6 +9,7 @@
   python3 tools/modpack.py add NAME NODES_DIR URL|--local DIR [--name N] [--ref REF]
                                                             добавить ноду в папку и в nodes.lock
   python3 tools/modpack.py bump NAME NODES_DIR NODE [REF]   перевести ноду на REF (по умолчанию origin/HEAD)
+  python3 tools/modpack.py patch NAME NODES_DIR NODE FILE   прописать патч из modpacks/NAME/patches узлу и наложить
   python3 tools/modpack.py latest-tag REPO_URL              последний релизный тег ComfyUI (vX.Y.Z)
 
 nodes.lock правится текстом (append / замена строки ref), а не yaml.dump: сохраняем комментарии и порядок.
@@ -87,6 +88,10 @@ def req_lines(path, excludes):
             continue
         m = REQ_NAME.match(s)
         pkg = m.group(1).lower().replace("_", "-") if m else ""
+        # git+https://…/repo(.git)(@ref) и «name @ url»: имя пакета — хвост URL или левая часть до @
+        url = re.search(r"(?:git\+|https?://)\S*?/([A-Za-z0-9._-]+?)(?:\.git)?(?:@[^\s#]*)?(?:#.*)?$", s)
+        if url and (pkg in ("git", "https", "http") or " @ " not in s):
+            pkg = url.group(1).lower().replace("_", "-") if pkg in ("git", "https", "http") else pkg
         if pkg in excludes:
             out.append(f"# исключено modpack.yaml pip.exclude: {s}")
         else:
@@ -147,7 +152,26 @@ def cmd_context(a):
 
 # ---------- sync ----------
 
-def node_state(n, ndir):
+def patches_account_for(pack, n, ndir, dirty):
+    """True, если все локальные правки — это наложенные патчи из nodes.lock (и ничего сверх них)."""
+    patches = n.get("patches") or []
+    if not patches:
+        return False
+    touched = set()
+    for p in reversed(patches):
+        pf = pack / "patches" / p
+        if not pf.is_file():
+            return False
+        r = subprocess.run(["git", "apply", "-R", "--check", str(pf)], cwd=ndir, capture_output=True, text=True)
+        if r.returncode:
+            return False
+        touched |= {l.split("\t", 2)[2] for l in git("apply", "--numstat", str(pf), cwd=ndir).splitlines() if l.count("\t") >= 2}
+    # git() обрезает вывод по краям: у первой строки porcelain пропадает ведущий пробел («M file» вместо « M file»)
+    changed = {l.split(None, 1)[-1] for l in dirty.splitlines() if l.strip()}
+    return changed <= touched
+
+
+def node_state(n, ndir, pack=None):
     """(состояние, подробности). Состояния: missing / notgit / ok / ref / dirty / remote."""
     if not ndir.is_dir():
         return "missing", ""
@@ -162,10 +186,13 @@ def node_state(n, ndir):
             problems.append(f"origin {origin or '—'} ≠ {n['repo']}")
     if head != n["ref"]:
         problems.append(f"HEAD {head[:7]} ≠ lock {str(n['ref'])[:7]}")
-    if dirty:
+    patched = bool(dirty) and pack is not None and patches_account_for(pack, n, ndir, dirty)
+    if dirty and not patched:
         problems.append(f"локальные правки: {len(dirty.splitlines())} файл(ов)")
     if not problems:
-        return "ok", head[:7]
+        return "ok", head[:7] + (f" + патчи: {', '.join(n['patches'])}" if patched else "")
+    if patched:
+        dirty = ""
     state = "remote" if any(p.startswith("origin") for p in problems) else ("dirty" if dirty else "ref")
     return state, "; ".join(problems)
 
@@ -189,7 +216,7 @@ def cmd_sync(a):
     bad = 0
     for n in nodes:
         ndir = nodes_dir / n["name"]
-        state, info = node_state(n, ndir)
+        state, info = node_state(n, ndir, pack)
         if state == "ok":
             print(f"ok       {n['name']} @ {info}")
             continue
@@ -327,6 +354,37 @@ def cmd_bump(a):
     print(f"{a.node}: {old[:7]} → {ref[:7]}" + ("" if old != ref else " (без изменений)"))
 
 
+def cmd_patch(a):
+    """Прописать патч узлу в nodes.lock (если ещё нет) и наложить его на каталог."""
+    pack, cfg, nodes = load_pack(a.name)
+    n = next((x for x in nodes if x["name"] == a.node), None) or die(f"{a.node} нет в nodes.lock")
+    ndir = Path(a.nodes_dir) / a.node
+    pf = pack / "patches" / a.patch
+    pf.is_file() or die(f"нет {pf}")
+    if a.patch not in (n.get("patches") or []):
+        lf = pack / "nodes.lock"
+        lines = lf.read_text(encoding="utf-8").splitlines(keepends=True)
+        i = next(k for k, l in enumerate(lines) if re.match(rf"^\s*-\s*name:\s*{re.escape(a.node)}\s*$", l))
+        for k in range(i + 1, len(lines)):
+            if re.match(r"^\s*-\s*name:", lines[k]):
+                die(f"{a.node}: в nodes.lock нет строки patches")
+            m = re.match(r"^(\s*patches:\s*)(.*)$", lines[k])
+            if m:
+                cur = yaml.safe_load(m.group(2) or "[]") or []
+                lines[k] = f"{m.group(1)}[{', '.join(cur + [a.patch])}]\n"
+                lf.write_text("".join(lines), encoding="utf-8")
+                break
+        print(f"nodes.lock: {a.node}.patches += {a.patch}")
+    r = subprocess.run(["git", "apply", "-R", "--check", str(pf)], cwd=ndir, capture_output=True, text=True)
+    if r.returncode == 0:
+        print(f"{a.node}: {a.patch} уже наложен")
+        return
+    r = subprocess.run(["git", "apply", "--check", str(pf)], cwd=ndir, capture_output=True, text=True)
+    r.returncode == 0 or die(f"{a.node}: {a.patch} не ложится: {r.stderr.strip()}")
+    git("apply", str(pf), cwd=ndir)
+    print(f"{a.node}: {a.patch} наложен")
+
+
 # ---------- latest-tag ----------
 
 def cmd_latest_tag(a):
@@ -354,6 +412,8 @@ def main():
     s.add_argument("--name", dest="node_name"); s.add_argument("--ref"); s.set_defaults(f=cmd_add)
     s = sp.add_parser("bump"); s.add_argument("name"); s.add_argument("nodes_dir"); s.add_argument("node")
     s.add_argument("ref", nargs="?"); s.set_defaults(f=cmd_bump)
+    s = sp.add_parser("patch"); s.add_argument("name"); s.add_argument("nodes_dir"); s.add_argument("node")
+    s.add_argument("patch"); s.set_defaults(f=cmd_patch)
     s = sp.add_parser("latest-tag"); s.add_argument("repo"); s.set_defaults(f=cmd_latest_tag)
     a = p.parse_args()
     if a.cmd == "add" and not a.url and not a.local:

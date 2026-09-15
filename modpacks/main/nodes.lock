@@ -8,3 +8,43 @@ nodes:
     repo: local
     ref: a6accafc041f35f02a61db8b43de6f2822282ea2
     patches: []
+  - name: ComfyUI-basic_data_handling
+    repo: https://github.com/StableLlama/ComfyUI-basic_data_handling
+    ref: d7c70b548e145cc0e687f3c45a748aa9311c01e6
+    patches: []
+  - name: ComfyUI-Easy-Use
+    repo: https://github.com/yolain/ComfyUI-Easy-Use
+    ref: 450b1ce4ce43b2280521c87f5fa388a898fb2ad2
+    patches: []
+  - name: ComfyUI-Impact-Pack
+    repo: https://github.com/ltdrdata/ComfyUI-Impact-Pack
+    ref: 429d0159ad429e64d2b3916e6e7be9c22d025c3c
+    patches: []
+  - name: ComfyUI-Inpaint-CropAndStitch
+    repo: https://github.com/lquesada/ComfyUI-Inpaint-CropAndStitch
+    ref: 00d4776c52d84ce150ce5fe50bf90f956db02a4c
+    patches: []
+  - name: ComfyUI-KJNodes
+    repo: https://github.com/kijai/ComfyUI-KJNodes
+    ref: d3cfe21625e5170126ce06fbfcfe1d88108688c3
+    patches: []
+  - name: comfyui-krea2edit
+    repo: https://github.com/lbouaraba/comfyui-krea2edit
+    ref: 86f886dac23013d88996e3a2e99093ba44d322fb
+    patches: []
+  - name: ComfyUI-LLM-text-processor
+    repo: https://github.com/KingManiya/ComfyUI-LLM-text-processor
+    ref: 65983de33681816f856db7e16767da906084c688
+    patches: [llm-text-processor-linux.patch]
+  - name: ComfyUI-mxToolkit
+    repo: https://github.com/Smirnov75/ComfyUI-mxToolkit
+    ref: 7f7a0e584f12078a1c589645d866ae96bad0cc35
+    patches: []
+  - name: ComfyUI_Comfyroll_CustomNodes
+    repo: https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes
+    ref: d78b780ae43fcf8c6b7c6505e6ffb4584281ceca
+    patches: []
+  - name: rgthree-comfy
+    repo: https://github.com/rgthree/rgthree-comfy
+    ref: 2c5342a8cb0eaecaabf61435a5f37dd594c510ba
+    patches: []

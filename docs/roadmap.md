@@ -48,9 +48,11 @@
   Smoke stable: 931 нода (927 ядра + 4 RH), без ошибок импорта. [ADR-0006](decisions/0006-modpack-main-starts-empty.md):
   `main` стартует пустым (вариант B), старые 42 каталога — справочник [nodes-inventory.md](nodes-inventory.md).
   Остановка контейнера — `--stop-signal SIGINT` (на SIGTERM ComfyUI не реагирует, podman ждал 15 с и слал SIGKILL).
-- Переезд данных: `~/ComfyUI/core` → `~/ComfyUI/main` (`mv`, ярлыки и `comfyctl` уже смотрят на `main`) — после остановки
+- 15.09 ✅ переезд данных `~/ComfyUI/core` → `~/ComfyUI/main`; `main` — рабочий (ярлыки). Первый воркфлоу ND Krea2 v1.4:
+  10 пакетов нод через `node add`, P3 через `node patch`, `workflow deps` (типы нод + сверка виджетов). См. [workflows/main.md](workflows/main.md).
+- ~~Переезд данных: `~/ComfyUI/core` → `~/ComfyUI/main` (`mv`, ярлыки и `comfyctl` уже смотрят на `main`) — после остановки
   текущего прогона. Старые `~/comfy/user` (116 воркфлоу) и `~/comfy/input` — копировать по запросу: воркфлоу с чужими
-  нодами откроются с «missing nodes», пока ноды не добавлены.
+  нодами откроются с «missing nodes», пока ноды не добавлены.~~
 - 15.09 ✅ живой `update main --to v0.35.2` (на временной папке данных): ядро 0.35.2 собрано (патч GrowMask лёг),
   `comfy-main:v0.35.2-170bea7` → `candidate`, smoke на 8101 чистый, схема 931 → 942 (+11: Bria*, FluxVideoEditNode,
   GeminiNodeV3; ломающих 0). `promote` (бэкап user/, теги, `core:` в modpack.yaml) и `rollback --user latest` проверены;

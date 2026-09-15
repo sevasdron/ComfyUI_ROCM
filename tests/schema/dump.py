@@ -37,7 +37,11 @@ def main():
     schema = normalize(info)
     with open(dst, "w", encoding="utf-8") as f:
         json.dump(schema, f, ensure_ascii=False, indent=1, sort_keys=True)
-    print(f"{len(schema)} nodes -> {dst}")
+    # Сырой /object_info рядом: нужен tools/workflow-deps.py (forceInput, control_after_generate — сверка виджетов воркфлоу).
+    raw = dst[:-5] + ".object_info.json" if dst.endswith(".json") else dst + ".object_info.json"
+    with open(raw, "w", encoding="utf-8") as f:
+        json.dump(info, f, ensure_ascii=False)
+    print(f"{len(schema)} nodes -> {dst} (+ {raw.rsplit('/', 1)[-1]})")
 
 
 if __name__ == "__main__":
