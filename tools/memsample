@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Сэмплер памяти GPU/ОЗУ раз в 2 с: VRAM (carve-out) и GTT занято, загрузка GPU, ОЗУ used/avail (ГиБ).
+#   bash tools/memsample > var/logs/memsample-<имя>.log &     остановить: pkill -f "tools/memsample"
+D=/sys/class/drm/card1/device
+while true; do
+  printf "%s vram=%.1f gtt=%.1f busy=%s%% ram_used=%s ram_avail=%s\n" "$(date +%H:%M:%S)" \
+    "$(($(cat $D/mem_info_vram_used)/1048576))e-3" "$(($(cat $D/mem_info_gtt_used)/1048576))e-3" \
+    "$(cat $D/gpu_busy_percent)" "$(free -g | awk 'NR==2{print $3}')" "$(free -g | awk 'NR==2{print $7}')"
+  sleep 2
+done
