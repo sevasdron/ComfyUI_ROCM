@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 # Управление нашей сборкой с рабочего стола (аналог ~/bin/comfyctl для старого toolbox).
 #   bash tools/comfyctl start | stop | restart | status | log
-# Контейнер comfy-<NAME> из tools/comfy; порт 8100; Manager включён.
+# Контейнер comfy-<NAME> из tools/comfy. NAME — модпак (по умолчанию main): порт, ключи и Manager
+# берутся из modpacks/<NAME>/modpack.yaml, образ comfy-<NAME>:stable. COMFY_NAME=core — голое ядро на 8100.
 set -uo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-NAME=${COMFY_NAME:-core}
-PORT=${COMFY_PORT:-8100}
+NAME=${COMFY_NAME:-main}
+if [ -f "$ROOT/modpacks/$NAME/modpack.yaml" ]; then
+    eval "$(python3 "$ROOT/tools/modpack.py" env "$NAME")"
+    PORT=${COMFY_PORT:-$MP_PORT}
+    RUN_OPTS=(--port "$PORT")
+else
+    PORT=${COMFY_PORT:-8100}
+    RUN_OPTS=(--port "$PORT" --manager)
+fi
 URL="http://127.0.0.1:$PORT"
 TIMEOUT=240
 # Интерфейс открываем как установленное PWA-приложение Chrome (ярлык ComfyUIROCM на рабочем столе),
@@ -28,7 +36,7 @@ running() { podman container exists "comfy-$NAME" 2>/dev/null && [ "$(podman ins
 do_start() {
     if port_up; then msg "Уже работает — открываю $URL"; open_ui; return 0; fi
     running || podman container exists "comfy-$NAME" && bash "$ROOT/tools/comfy" stop "$NAME" >/dev/null 2>&1
-    bash "$ROOT/tools/comfy" run "$NAME" --port "$PORT" --manager || { msg "Не смог запустить контейнер comfy-$NAME"; return 1; }
+    bash "$ROOT/tools/comfy" run "$NAME" "${RUN_OPTS[@]}" || { msg "Не смог запустить контейнер comfy-$NAME"; return 1; }
     for ((i = 0; i < TIMEOUT; i++)); do
         port_up && { msg "ComfyUI ROCm Halo поднялся на $URL"; open_ui; return 0; }
         running || break

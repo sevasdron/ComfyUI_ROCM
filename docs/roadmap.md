@@ -42,13 +42,21 @@
   structure resolution=64 в upstream не работает). Воркфлоу TRELLIS.2/pixal3d проходит на res 32 и 64.
   Уроки V3: `lock_class` пересобирает класс ноды — никаких `super()` и атрибутов класса в `execute`; хук подсказки
   оборачивает `execution.get_output_data`.
-- `tools/comfy update | promote | rollback`, `modpack.yaml`, сборка образа модпака из `nodes.lock`.
-- `nodes.lock` из текущих 42 каталогов: сопоставить 18 нод без git с репозиториями/версиями реестра,
-  решить судьбу лишних (`comfyui_nvidia_rtx_nodes`, отключённый `_mtp_ND`).
-- Форки нод с правками P3, P4, P5, P1.
-- Эталонные воркфлоу по семействам моделей, `tests/workflows`.
-- Переезд данных в `~/ComfyUI/main/` ([ADR-0003](decisions/0003-container-single-data-folder.md)):
-  `custom_nodes` (6.1 ГБ), `user` (116 воркфлоу, `comfyui.db`), `input` (33 МБ), `output` из `~/comfy-outputs`.
+- 15.09 ✅ **модпак как код**: `modpacks/main/{modpack.yaml,nodes.lock}`, общий `modpacks/Containerfile`,
+  `tools/modpack.py`; `tools/comfy build main | run main [--channel candidate] | sync | node add|bump | update | promote | rollback`.
+  Образ `comfy-main:v0.35.1-<lock7>` (8.89 ГБ — у пака ROCm Halo нет зависимостей), теги каналов `stable / candidate / prev`.
+  Smoke stable: 931 нода (927 ядра + 4 RH), без ошибок импорта. [ADR-0006](decisions/0006-modpack-main-starts-empty.md):
+  `main` стартует пустым (вариант B), старые 42 каталога — справочник [nodes-inventory.md](nodes-inventory.md).
+  Остановка контейнера — `--stop-signal SIGINT` (на SIGTERM ComfyUI не реагирует, podman ждал 15 с и слал SIGKILL).
+- Переезд данных: `~/ComfyUI/core` → `~/ComfyUI/main` (`mv`, ярлыки и `comfyctl` уже смотрят на `main`) — после остановки
+  текущего прогона. Старые `~/comfy/user` (116 воркфлоу) и `~/comfy/input` — копировать по запросу: воркфлоу с чужими
+  нодами откроются с «missing nodes», пока ноды не добавлены.
+- 15.09 ✅ живой `update main --to v0.35.2` (на временной папке данных): ядро 0.35.2 собрано (патч GrowMask лёг),
+  `comfy-main:v0.35.2-170bea7` → `candidate`, smoke на 8101 чистый, схема 931 → 942 (+11: Bria*, FluxVideoEditNode,
+  GeminiNodeV3; ломающих 0). `promote` (бэкап user/, теги, `core:` в modpack.yaml) и `rollback --user latest` проверены;
+  stable оставлен на v0.35.1 — promote в работу после переезда данных и ручной проверки кандидата.
+- Ноды по потребности через `node add`; форки P3/P4/P5 — когда соответствующая нода понадобится в `main`.
+- Эталонные воркфлоу `modpacks/main/workflows/`, `tests/workflows` — после первых нод.
 - Переход на `main` как основной, `strix-halo-comfyui` остаётся резервом.
 
 ## Этап 4 — модпак `trellis2` (пилот нативных сборок)
@@ -83,5 +91,6 @@
 | Эталонные воркфлоу: какие именно и какой бюджет времени на прогон | этап 2–3 |
 | VRAM в BIOS 32 ГБ или минимум + большой GTT — замер 14.09: carve-out не используется (1.4 ГБ), всё в GTT, см. [hardware.md](hardware.md) | проверить минимум в BIOS на том же прогоне |
 | ~~Nodes 2.0 (Vue-рендер) и Node API V3: что делать с нодами~~ — [ADR-0005](decisions/0005-frontend-nodes2-and-node-api-v3.md): в stable выключен, свои ноды на V3 | решено 14.09 |
-| Отказ от `privileged` и монтирования всего `/home` — не сломает ли ноды, пишущие вне своих папок | этап 3 |
+| Отказ от `privileged` и монтирования всего `/home` — не сломает ли ноды, пишущие вне своих папок | по мере добавления нод в `main` |
+| Manager в `main`: включён на время набора нод (ADR-0006); выключить, когда состав устоится | этап 3 |
 | Кэш HuggingFace: какой путь сейчас реально используется (`/mnt/data/huggingface` или `~/.cache`) и работают ли его симлинки на NTFS. `tools/comfy` пока монтирует `/mnt/data/huggingface` (переопределяется `HF_CACHE`) | этап 3, при первом воркфлоу с HF-моделью |

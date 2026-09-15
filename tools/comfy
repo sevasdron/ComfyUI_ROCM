@@ -1,32 +1,49 @@
 #!/usr/bin/env bash
-# tools/comfy — сборка и запуск слоёв ComfyUI (ADR-0001/0003).
+# tools/comfy — сборка и запуск слоёв ComfyUI (ADR-0001/0002/0003), обновления и откат.
 #
-#   bash tools/comfy build core [REF]            ядро comfy-core:<REF> (REF по умолчанию — core/versions.env)
-#   bash tools/comfy run NAME [опции] [-- ключи]  контейнер comfy-NAME, данные ~/ComfyUI/NAME → /data
-#   bash tools/comfy stop NAME | log NAME | status
-#   bash tools/comfy smoke NAME [опции]          run → проверки → снимок схемы → stop
+#   bash tools/comfy build core [REF]              ядро comfy-core:<REF> (REF по умолчанию — core/versions.env)
+#   bash tools/comfy build NAME [--core REF]       образ модпака comfy-NAME:<REF>-<lock7> и тег :candidate
+#   bash tools/comfy run NAME [опции] [-- ключи]   контейнер comfy-NAME, данные ~/ComfyUI/NAME → /data
+#   bash tools/comfy stop NAME | log NAME [-f] | status
+#   bash tools/comfy smoke NAME [опции]            run → проверки → снимок схемы → stop
 #   bash tools/comfy schema diff OLD.json NEW.json
+#   bash tools/comfy sync NAME [--apply]           сверить ~/ComfyUI/NAME/custom_nodes с nodes.lock (--apply: клонировать/переключить)
+#   bash tools/comfy node add NAME URL [--name N] [--ref R]   нода → custom_nodes и nodes.lock (или --local DIR)
+#   bash tools/comfy node bump NAME NODE [REF]     перевести ноду на REF (по умолчанию origin/HEAD), обновить nodes.lock
+#   bash tools/comfy update NAME [--to REF|latest] ядро REF → модпак :candidate → smoke на port+1 с копией user/ → diff схемы
+#   bash tools/comfy promote NAME                  бэкап user/ → candidate→stable, stable→prev, core: в modpack.yaml
+#   bash tools/comfy rollback NAME [--user latest|ФАЙЛ]   stable↔prev; --user: вернуть user/ из бэкапа
 #
+# NAME = core (голое ядро, данные ~/ComfyUI/core) или модпак из modpacks/NAME (порт, ключи, Manager — из modpack.yaml).
 # Опции run/smoke:
-#   --image IMG   образ (по умолчанию для NAME=core: comfy-core:<COMFYUI_REF>)
-#   --port P      порт на хосте и в контейнере (по умолчанию 8100)
-#   --manager     включить ComfyUI-Manager (--enable-manager --enable-manager-legacy-ui)
-#   -- ...        всё после «--» уходит в main.py вместо ключей по умолчанию
-#
-# Этап 3 добавит: update / promote / rollback (работают с тегами модпака и бэкапом user/).
+#   --image IMG            образ (по умолчанию core: comfy-core:<COMFYUI_REF>; модпак: comfy-NAME:stable)
+#   --channel stable|candidate   модпак: candidate = образ :candidate, порт+1, контейнер comfy-NAME-candidate,
+#                          user/ → user-candidate/ (копия: новая версия мигрирует comfyui.db)
+#   --port P               порт на хосте и в контейнере (по умолчанию core: 8100; модпак: port из modpack.yaml)
+#   --manager / --no-manager   ComfyUI-Manager (--enable-manager --enable-manager-legacy-ui); модпак: из modpack.yaml
+#   -- ...                 всё после «--» уходит в main.py вместо ключей по умолчанию
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck disable=SC1091
 source "$ROOT/core/versions.env"
+MODPACK_PY="$ROOT/tools/modpack.py"
 
 # Хостовые пути (ADR-0003). Переопределяются переменными окружения.
 COMFY_HOME="${COMFY_HOME:-$HOME/ComfyUI}"                       # ~/ComfyUI/<NAME> → /data
 MODELS_DIR="${MODELS_DIR:-/mnt/data/AI_Models/ComfyUI}"        # → /models, только чтение
 HF_CACHE="${HF_CACHE:-/mnt/data/huggingface}"                  # → /cache/hf
-# Ключи запуска по умолчанию — те же, что в ~/bin/start_comfy_manager (не терять!).
+# Ключи запуска по умолчанию для NAME=core — те же, что в ~/bin/start_comfy_manager (не терять!).
+# У модпаков ключи в modpack.yaml.
 COMFY_ARGS="${COMFY_ARGS:---disable-mmap --gpu-only --bf16-vae}"
 
 die() { echo "comfy: $*" >&2; exit 1; }
+is_modpack() { [ -f "$ROOT/modpacks/$1/modpack.yaml" ]; }
+mp_image() { echo "localhost/comfy-$1"; }        # имя образа модпака
+core_tag() { echo "${1//\//-}"; }                # ветку с '/' в тег не положить
+load_modpack() {  # → MP_NAME MP_CORE MP_PORT MP_MANAGER MP_ARGS MP_NODES
+    is_modpack "$1" || die "нет модпака $1 (modpacks/$1/modpack.yaml)"
+    eval "$(python3 "$MODPACK_PY" env "$1")"
+}
 
 # Общие ключи podman: GPU без privileged, свой uid внутри (файлы в /data — наши),
 # NTFS-монтирования без SELinux-меток.
@@ -35,11 +52,11 @@ podman_common() {
          --userns=keep-id --security-opt label=disable
 }
 
-cmd_build() {
-    local what=${1:-}; shift || true
-    [ "$what" = core ] || die "build: пока только 'core' (модпаки — этап 3)"
-    local ref=${1:-$COMFYUI_REF}
-    local tag=${ref//\//-}          # ветку с '/' в тег не положить
+# ---------- build ----------
+
+build_core() {
+    local ref=${1:-$COMFYUI_REF} tag
+    tag=$(core_tag "$ref")
     podman build \
         --build-arg RUNTIME_IMAGE="$RUNTIME_IMAGE" \
         --build-arg COMFYUI_REPO="$COMFYUI_REPO" \
@@ -50,38 +67,102 @@ cmd_build() {
     podman images --format '{{.Repository}}:{{.Tag}}  {{.Size}}' "$IMAGE"
 }
 
-# Разбор опций run/smoke → переменные NAME IMG PORT MANAGER EXTRA
+# Образ модпака: FROM comfy-core:<REF>, контекст из nodes.lock + requirements нод (tools/modpack.py context).
+# Теги: comfy-NAME:<REF>-<lock7> (история) и comfy-NAME:candidate (promote переведёт в stable).
+build_modpack() {
+    local name=$1; shift
+    load_modpack "$name"
+    local ref=$MP_CORE
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --core) ref=$2; shift 2 ;;
+            *) die "build $name: неизвестная опция $1" ;;
+        esac
+    done
+    local core_img="$IMAGE:$(core_tag "$ref")"
+    podman image exists "$core_img" || die "нет образа ядра $core_img — сначала: comfy build core $ref"
+    local ctx="$ROOT/var/build/$name"
+    python3 "$MODPACK_PY" context "$name" "$ctx" "$COMFY_HOME/$name/custom_nodes" --core "$ref"
+    # shellcheck disable=SC1091
+    source "$ctx/modpack.env"
+    local img; img=$(mp_image "$name")
+    local tag="$(core_tag "$ref")-$LOCK7"
+    podman build \
+        --build-arg CORE_IMAGE="$core_img" \
+        --build-arg MODPACK="$name" \
+        --build-arg CORE_REF="$ref" \
+        --build-arg LOCK_SHA="$LOCK_SHA" \
+        -t "$img:$tag" -t "$img:candidate" \
+        -f "$ROOT/modpacks/Containerfile" "$ctx"
+    echo "собран $img:$tag → :candidate (ядро $ref, lock $LOCK7)"
+    podman images --format '{{.Repository}}:{{.Tag}}  {{.Size}}  {{.ID}}' "$img"
+}
+
+cmd_build() {
+    local what=${1:-}; shift || true
+    [ -n "$what" ] || die "build: core [REF] | NAME [--core REF]"
+    if [ "$what" = core ]; then build_core "$@"; else build_modpack "$what" "$@"; fi
+}
+
+# ---------- run / stop / log / status ----------
+
+# Разбор опций run/smoke → NAME IMG PORT MANAGER EXTRA CHANNEL DATA CONTAINER USER_DIR
 parse_run_opts() {
     NAME=${1:-}; shift || true
     [ -n "$NAME" ] || die "нужно имя (core или модпак)"
-    IMG=""; PORT=8100; MANAGER=0; EXTRA=()
+    IMG=""; PORT=""; MANAGER=""; EXTRA=(); CHANNEL=stable
     while [ $# -gt 0 ]; do
         case "$1" in
             --image) IMG=$2; shift 2 ;;
             --port) PORT=$2; shift 2 ;;
+            --channel) CHANNEL=$2; shift 2 ;;
             --manager) MANAGER=1; shift ;;
+            --no-manager) MANAGER=0; shift ;;
             --) shift; EXTRA=("$@"); break ;;
             *) die "неизвестная опция $1" ;;
         esac
     done
-    if [ -z "$IMG" ]; then
-        [ "$NAME" = core ] || die "для '$NAME' укажи --image (образы модпаков — этап 3)"
-        IMG="$IMAGE:${COMFYUI_REF//\//-}"
-    fi
+    case "$CHANNEL" in stable|candidate) ;; *) die "--channel: stable или candidate" ;; esac
     DATA="$COMFY_HOME/$NAME"
     CONTAINER="comfy-$NAME"
+    USER_DIR=""
+    if is_modpack "$NAME"; then
+        load_modpack "$NAME"
+        local img; img=$(mp_image "$NAME")
+        [ -n "$IMG" ] || IMG="$img:$CHANNEL"
+        [ -n "$PORT" ] || PORT=$MP_PORT
+        [ -n "$MANAGER" ] || MANAGER=$MP_MANAGER
+        [ ${#EXTRA[@]} -gt 0 ] || read -r -a EXTRA <<<"$MP_ARGS"
+        if [ "$CHANNEL" = candidate ]; then
+            # Кандидат: те же custom_nodes/input/output, но своя копия user/ (миграция comfyui.db).
+            [ "$PORT" != "$MP_PORT" ] || PORT=$((MP_PORT + 1))
+            CONTAINER="comfy-$NAME-candidate"
+            USER_DIR=/data/user-candidate
+        fi
+    else
+        [ "$NAME" = core ] || die "нет модпака $NAME (modpacks/$NAME/modpack.yaml); для чужого образа: run core --image IMG"
+        [ "$CHANNEL" = stable ] || die "--channel только для модпаков"
+        [ -n "$IMG" ] || IMG="$IMAGE:$(core_tag "$COMFYUI_REF")"
+        [ -n "$PORT" ] || PORT=8100
+        [ -n "$MANAGER" ] || MANAGER=0
+        [ ${#EXTRA[@]} -gt 0 ] || read -r -a EXTRA <<<"$COMFY_ARGS"
+    fi
 }
 
 cmd_run() {
     parse_run_opts "$@"
-    podman container exists "$CONTAINER" && die "контейнер $CONTAINER уже есть — сначала: comfy stop $NAME"
+    podman container exists "$CONTAINER" && die "контейнер $CONTAINER уже есть — сначала: comfy stop $NAME${USER_DIR:+ --channel candidate}"
+    podman image exists "$IMG" || die "нет образа $IMG"
     mkdir -p "$DATA"/{custom_nodes,user,input,output,temp}
     [ -d "$MODELS_DIR" ] || die "нет папки моделей $MODELS_DIR"
     mkdir -p "$HF_CACHE"
 
-    local args=()
-    if [ ${#EXTRA[@]} -gt 0 ]; then args=("${EXTRA[@]}"); else read -r -a args <<<"$COMFY_ARGS"; fi
+    local args=("${EXTRA[@]}")
     [ "$MANAGER" -eq 1 ] && args+=(--enable-manager --enable-manager-legacy-ui)
+    if [ -n "$USER_DIR" ]; then
+        [ -d "$DATA/user-candidate" ] || { mkdir -p "$DATA/user-candidate"; cp -a "$DATA/user/." "$DATA/user-candidate/"; }
+        args+=(--user-directory "$USER_DIR")
+    fi
 
     # HOME=/data: под --userns=keep-id у UID хоста нет записи в /etc/passwd образа,
     # podman сам назначает HOME = WORKDIR (/opt/ComfyUI), а он root-owned. Без явного
@@ -94,8 +175,10 @@ cmd_run() {
     # main.py — абсолютным путём: у сторонних образов (например, kyuz0 для сверки
     # схемы) WORKDIR может быть не /opt/ComfyUI (у него — .../custom_nodes, хвост
     # от их сборки), а относительный "python main.py" тогда не находит файл.
+    # --stop-signal SIGINT: на SIGTERM ComfyUI не реагирует, podman stop ждёт 15 с и шлёт SIGKILL;
+    # SIGINT он обрабатывает как Ctrl-C и выходит сразу.
     # shellcheck disable=SC2046
-    podman run -d --name "$CONTAINER" $(podman_common) \
+    podman run -d --name "$CONTAINER" $(podman_common) --stop-signal SIGINT \
         -p "127.0.0.1:$PORT:$PORT" \
         -v "$DATA:/data" \
         -v "$MODELS_DIR:/models:ro" \
@@ -104,11 +187,13 @@ cmd_run() {
         -e HF_HOME=/cache/hf \
         "$IMG" python /opt/ComfyUI/main.py --listen 0.0.0.0 --port "$PORT" \
             --base-directory /data --models-directory /models "${args[@]}" >/dev/null </dev/null
-    echo "$CONTAINER: $IMG → http://127.0.0.1:$PORT  (данные: $DATA)"
+    echo "$CONTAINER: $IMG → http://127.0.0.1:$PORT  (данные: $DATA${USER_DIR:+, user: user-candidate})"
 }
 
+# stop NAME [--channel candidate]
 cmd_stop() {
-    local c="comfy-${1:?имя}"
+    local n=${1:?имя} c
+    c="comfy-$n"; [ "${2:-}" = --channel ] && [ "${3:-}" = candidate ] && c="$c-candidate"
     podman container exists "$c" || { echo "$c не запущен"; return 0; }
     podman stop -t 15 "$c" >/dev/null && podman rm "$c" >/dev/null && echo "$c остановлен"
 }
@@ -117,6 +202,13 @@ cmd_log() { local n=${1:?имя}; shift; podman logs "$@" "comfy-$n" 2>&1; }   #
 
 cmd_status() {
     podman ps -a --filter name='^comfy-' --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
+    local d
+    for d in "$ROOT"/modpacks/*/modpack.yaml; do
+        [ -f "$d" ] || continue
+        local n; n=$(basename "$(dirname "$d")")
+        echo; echo "модпак $n ($(mp_image "$n")):"
+        podman images --format '  {{.Tag}}\t{{.ID}}\t{{.Size}}\t{{.Created}}' "$(mp_image "$n")" | sort || true
+    done
 }
 
 wait_port() {  # $1 порт, $2 контейнер, $3 таймаут
@@ -128,10 +220,15 @@ wait_port() {  # $1 порт, $2 контейнер, $3 таймаут
     return 1
 }
 
+# ---------- smoke / schema ----------
+
+# Снимок схемы кладём под именем образа: var/schema/<repo>_<tag>.json.
+schema_snap() { local s="$ROOT/var/schema/${1##*/}.json"; echo "${s//:/_}"; }
+
 cmd_smoke() {
     parse_run_opts "$@"
     local fail=0 log
-    log="$ROOT/var/logs/smoke-$NAME-$(date +%Y%m%d-%H%M%S).log"
+    log="$ROOT/var/logs/smoke-$NAME${USER_DIR:+-candidate}-$(date +%Y%m%d-%H%M%S).log"
     mkdir -p "$ROOT/var/logs" "$ROOT/var/schema"
 
     cmd_run "$@"
@@ -152,7 +249,7 @@ cmd_smoke() {
         [ "$code" = 200 ] && echo "   / → 200" || { echo "   ПРОВАЛ: / → $code"; fail=1; }
 
         echo "== схема нод"
-        local snap="$ROOT/var/schema/${IMG##*/}.json"; snap=${snap//:/_}
+        local snap; snap=$(schema_snap "$IMG")
         python3 "$ROOT/tests/schema/dump.py" "http://127.0.0.1:$PORT" "$snap" || fail=1
     fi
 
@@ -162,9 +259,15 @@ cmd_smoke() {
     else
         echo "   без IMPORT FAILED и трейсбеков"
     fi
+    if is_modpack "$NAME"; then
+        echo "== custom_nodes"
+        local loaded
+        loaded=$(grep -cE '[0-9.]+ seconds: /data/custom_nodes/' "$log" || true)   # строки с ANSI-цветом, без ^
+        echo "   загружено пакетов нод: $loaded (в nodes.lock: $MP_NODES)"
+    fi
     grep -iE "^\s*\[?(ERROR|WARNING)" "$log" | head -5 | sed 's/^/   ! /' || true
 
-    cmd_stop "$NAME"
+    if [ -n "$USER_DIR" ]; then cmd_stop "$NAME" --channel candidate; else cmd_stop "$NAME"; fi
     echo
     [ "$fail" -eq 0 ] && echo "ИТОГ: всё чисто ($log)" || echo "ИТОГ: есть проблемы — лог: $log"
     return "$fail"
@@ -175,13 +278,156 @@ cmd_schema() {
     shift; python3 "$ROOT/tests/schema/diff.py" "$@"
 }
 
+# ---------- sync / node ----------
+
+cmd_sync() {
+    local name=${1:?имя модпака}; shift
+    load_modpack "$name"
+    python3 "$MODPACK_PY" sync "$name" "$COMFY_HOME/$name/custom_nodes" "$@"
+}
+
+cmd_node() {
+    local op=${1:-} name=${2:-}
+    [ -n "$name" ] || die "node add NAME URL [--name N] [--ref R] | node add NAME --local DIR | node bump NAME NODE [REF]"
+    shift 2
+    load_modpack "$name"
+    case "$op" in
+        add|bump) python3 "$MODPACK_PY" "$op" "$name" "$COMFY_HOME/$name/custom_nodes" "$@" ;;
+        *) die "node: add или bump" ;;
+    esac
+}
+
+# ---------- update / promote / rollback ----------
+
+running_note() {  # напомнить, что работающий контейнер надо перезапустить
+    podman container exists "comfy-$1" && echo "comfy-$1 сейчас запущен на старом образе — перезапусти: bash tools/comfyctl restart" || true
+}
+
+cmd_update() {
+    local name=${1:?имя модпака}; shift
+    load_modpack "$name"
+    local to=latest
+    while [ $# -gt 0 ]; do
+        case "$1" in --to) to=$2; shift 2 ;; *) die "update: --to REF|latest" ;; esac
+    done
+    local ref=$to
+    [ "$to" = latest ] && ref=$(python3 "$MODPACK_PY" latest-tag "$COMFYUI_REPO")
+    echo "== цель: ядро $ref (stable сейчас на $MP_CORE)"
+    if podman image exists "$IMAGE:$(core_tag "$ref")"; then
+        echo "== ядро $IMAGE:$(core_tag "$ref") уже собрано"
+    else
+        echo "== сборка ядра $ref"; build_core "$ref"
+    fi
+    echo "== сборка модпака $name на $ref"
+    build_modpack "$name" --core "$ref"
+    echo "== свежая копия user/ для кандидата"
+    local data="$COMFY_HOME/$name"
+    rm -rf "$data/user-candidate"; mkdir -p "$data/user-candidate"; cp -a "$data/user/." "$data/user-candidate/"
+    echo "== smoke кандидата (порт $((MP_PORT + 1)))"
+    local rc=0
+    cmd_smoke "$name" --channel candidate || rc=$?
+    local img; img=$(mp_image "$name")
+    local old new
+    old=$(schema_snap "$img:stable"); new=$(schema_snap "$img:candidate")
+    if [ -f "$old" ] && [ -f "$new" ]; then
+        echo "== схема: stable → candidate"
+        python3 "$ROOT/tests/schema/diff.py" "$old" "$new" || true
+    else
+        echo "== схема: нет снимка stable ($old) — сними: comfy smoke $name"
+    fi
+    echo
+    if [ "$rc" -eq 0 ]; then
+        echo "кандидат готов: ручная проверка — comfy run $name --channel candidate (порт $((MP_PORT + 1))), затем comfy promote $name"
+    else
+        echo "кандидат с проблемами (см. выше); promote не делать"
+    fi
+    return "$rc"
+}
+
+cmd_promote() {
+    local name=${1:?имя модпака}
+    load_modpack "$name"
+    local img; img=$(mp_image "$name")
+    podman image exists "$img:candidate" || die "нет $img:candidate — сначала: comfy update $name или comfy build $name"
+    local cand_id; cand_id=$(podman inspect -f '{{.Id}}' "$img:candidate")
+    if podman image exists "$img:stable" && [ "$(podman inspect -f '{{.Id}}' "$img:stable")" = "$cand_id" ]; then
+        echo "candidate уже является stable"; return 0
+    fi
+    local ref; ref=$(podman inspect -f '{{index .Labels "comfy.core.ref"}}' "$img:candidate")
+    # Бэкап user/ (comfyui.db мигрирует вперёд при первом старте новой версии, назад — нет).
+    local data="$COMFY_HOME/$name" bdir="$ROOT/var/backups/$name" stamp; stamp=$(date +%Y%m%d-%H%M%S)
+    mkdir -p "$bdir"
+    if [ -d "$data/user" ]; then
+        tar -C "$data" -czf "$bdir/user-$stamp.tar.gz" user
+        echo "бэкап user/ → $bdir/user-$stamp.tar.gz ($(du -h "$bdir/user-$stamp.tar.gz" | cut -f1))"
+    fi
+    if podman image exists "$img:stable"; then
+        podman tag "$img:stable" "$img:prev"
+        echo "stable ($(podman inspect -f '{{index .Labels "comfy.core.ref"}}' "$img:prev")) → prev"
+    fi
+    podman tag "$img:candidate" "$img:stable"
+    echo "candidate ($ref) → stable"
+    # Снимок схемы кандидата становится снимком stable (для следующего diff).
+    [ -f "$(schema_snap "$img:candidate")" ] && cp "$(schema_snap "$img:candidate")" "$(schema_snap "$img:stable")"
+    if [ -n "$ref" ] && [ "$ref" != "$MP_CORE" ]; then
+        sed -i "s/^core: .*/core: $ref/" "$ROOT/modpacks/$name/modpack.yaml"
+        echo "modpacks/$name/modpack.yaml: core: $MP_CORE → $ref (закоммить)"
+    fi
+    running_note "$name"
+}
+
+cmd_rollback() {
+    local name=${1:?имя модпака}; shift
+    load_modpack "$name"
+    local img; img=$(mp_image "$name")
+    local restore=""
+    while [ $# -gt 0 ]; do
+        case "$1" in --user) restore=$2; shift 2 ;; *) die "rollback: [--user latest|ФАЙЛ.tar.gz]" ;; esac
+    done
+    podman image exists "$img:prev" || die "нет $img:prev — откатывать не на что"
+    podman image exists "$img:stable" || die "нет $img:stable"
+    # Меняем stable и prev местами: повторный rollback возвращает всё как было.
+    podman tag "$img:stable" "$img:rollback-tmp"
+    podman tag "$img:prev" "$img:stable"
+    podman tag "$img:rollback-tmp" "$img:prev"
+    # untag с именем — снять только его: `podman untag ОБРАЗ` без списка имён снимает ВСЕ теги образа.
+    podman untag "$img:rollback-tmp" "$img:rollback-tmp"
+    local ref; ref=$(podman inspect -f '{{index .Labels "comfy.core.ref"}}' "$img:stable")
+    echo "prev → stable ($ref), прежний stable → prev"
+    [ -f "$(schema_snap "$img:prev")" ] && cp "$(schema_snap "$img:prev")" "$(schema_snap "$img:stable")" || true
+    if [ -n "$ref" ] && [ "$ref" != "$MP_CORE" ]; then
+        sed -i "s/^core: .*/core: $ref/" "$ROOT/modpacks/$name/modpack.yaml"
+        echo "modpacks/$name/modpack.yaml: core: $MP_CORE → $ref (закоммить)"
+    fi
+    local data="$COMFY_HOME/$name" bdir="$ROOT/var/backups/$name"
+    if [ -n "$restore" ]; then
+        local f=$restore
+        [ "$restore" = latest ] && f=$(ls -1t "$bdir"/user-*.tar.gz 2>/dev/null | head -1)
+        [ -n "$f" ] && [ -f "$f" ] || die "нет бэкапа user/ ($restore)"
+        podman container exists "comfy-$name" && die "comfy-$name запущен — останови, потом --user"
+        local stamp; stamp=$(date +%Y%m%d-%H%M%S)
+        mv "$data/user" "$data/user.before-rollback-$stamp"
+        tar -C "$data" -xzf "$f"
+        echo "user/ ← $f (прежний user/ → user.before-rollback-$stamp)"
+    else
+        echo "user/ не тронут; если новая версия мигрировала comfyui.db и старая её не открывает: comfy rollback $name --user latest"
+        ls -1t "$bdir"/user-*.tar.gz 2>/dev/null | head -3 | sed 's/^/   бэкап: /' || true
+    fi
+    running_note "$name"
+}
+
 case "${1:-}" in
-    build)  shift; cmd_build "$@" ;;
-    run)    shift; cmd_run "$@" ;;
-    stop)   shift; cmd_stop "$@" ;;
-    log)    shift; cmd_log "$@" ;;
-    status) cmd_status ;;
-    smoke)  shift; cmd_smoke "$@" ;;
-    schema) shift; cmd_schema "$@" ;;
-    *) sed -n '2,20p' "$0"; exit 1 ;;
+    build)    shift; cmd_build "$@" ;;
+    run)      shift; cmd_run "$@" ;;
+    stop)     shift; cmd_stop "$@" ;;
+    log)      shift; cmd_log "$@" ;;
+    status)   cmd_status ;;
+    smoke)    shift; cmd_smoke "$@" ;;
+    schema)   shift; cmd_schema "$@" ;;
+    sync)     shift; cmd_sync "$@" ;;
+    node)     shift; cmd_node "$@" ;;
+    update)   shift; cmd_update "$@" ;;
+    promote)  shift; cmd_promote "$@" ;;
+    rollback) shift; cmd_rollback "$@" ;;
+    *) sed -n '2,29p' "$0"; exit 1 ;;
 esac

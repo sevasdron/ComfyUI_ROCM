@@ -1,0 +1,42 @@
+# Слой 3 — модпак поверх ядра: pip-зависимости нод, системные пакеты, собранные колёса.
+# Код нод в образ НЕ входит — он в ~/ComfyUI/<модпак>/custom_nodes и монтируется (ADR-0002/0003).
+#
+# Контекст сборки генерирует tools/modpack.py context в var/build/<модпак>/:
+#   requirements.txt  — requirements.txt всех нод из nodes.lock + pip.extra, без pip.exclude
+#   dnf.txt           — системные пакеты из modpack.yaml
+#   wheels/           — var/wheels/<модпак>/*.whl (нативные сборки, этап 4)
+#   modpack.env       — MODPACK, CORE_REF, LOCK_SHA (для меток образа)
+# Сборка: bash tools/comfy build <модпак> [--core REF]  → localhost/comfy-<модпак>:<REF>-<lock7> и :candidate
+
+ARG CORE_IMAGE=localhost/comfy-core:v0.35.1
+FROM ${CORE_IMAGE}
+
+ARG CORE_IMAGE
+ARG MODPACK=main
+ARG CORE_REF=
+ARG LOCK_SHA=
+
+COPY . /opt/modpack/
+
+# Системные пакеты нод (ffmpeg и т.п. уже в runtime; сюда — то, что нужно конкретному модпаку).
+RUN if grep -qvE '^\s*(#|$)' /opt/modpack/dnf.txt; then \
+        dnf -y install --setopt=install_weak_deps=False --nodocs $(grep -vE '^\s*(#|$)' /opt/modpack/dnf.txt) \
+        && dnf clean all && rm -rf /var/cache/dnf /var/cache/libdnf5; \
+    fi
+
+# Зависимости нод одним вызовом pip (совместное разрешение версий). PIP_CONSTRAINT из runtime
+# не даёт сдвинуть torch/ROCm; check-torch-stack.py (из слоя ядра) это подтверждает.
+# --find-links: сначала наши колёса из wheels/, остальное с PyPI.
+RUN if grep -qvE '^\s*(#|$)' /opt/modpack/requirements.txt; then \
+        pip install --find-links /opt/modpack/wheels -r /opt/modpack/requirements.txt && pip check; \
+    fi \
+    && python3 /opt/check-torch-stack.py
+
+LABEL org.opencontainers.image.title="comfy-${MODPACK}" \
+      org.opencontainers.image.base.name="${CORE_IMAGE}" \
+      comfy.modpack="${MODPACK}" \
+      comfy.core.ref="${CORE_REF}" \
+      comfy.lock.sha256="${LOCK_SHA}"
+
+WORKDIR /opt/ComfyUI
+CMD ["python", "main.py", "--help"]

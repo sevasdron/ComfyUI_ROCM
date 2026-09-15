@@ -67,7 +67,9 @@
   `comfyui-rocm-halo` («ROCm Halo», префикс `RH_`), Node API V3, без JavaScript ([ADR-0005](decisions/0005-frontend-nodes2-and-node-api-v3.md)).
 - pip-зависимости нод ставятся с `constraints.txt`. Исключения (`pedalboard`, `opencv-python`
   поверх headless) описываются явно в `modpack.yaml`.
-- Manager в модпаке выключен: состав меняется только через репозиторий.
+- Manager — параметр `manager:` в `modpack.yaml`. Целевое состояние — выключен (состав меняется только через
+  репозиторий); в `main` пока включён, пока ноды набираются по потребности ([ADR-0006](decisions/0006-modpack-main-starts-empty.md)).
+  Всё, что поставлено мимо `nodes.lock`, `tools/comfy sync` показывает как лишнее.
 
 ## Данные и запуск контейнера
 
@@ -79,6 +81,7 @@ ComfyUI ожидает от `--base-directory`, поэтому она монти
   main/                   ← модпак (одна папка = всё его рабочее)
     custom_nodes/         ← ноды: git-клоны/форки, правятся прямо здесь
     user/                 ← настройки, воркфлоу, comfyui.db
+    user-candidate/       ← копия user/ для кандидата обновления (tools/comfy update; --user-directory)
     input/
     output/
     temp/
@@ -106,10 +109,14 @@ ComfyUI ожидает от `--base-directory`, поэтому она монти
 и показывает расхождения (локальные правки, лишние каталоги).
 
 Кандидат обновления ядра использует те же `custom_nodes/`, `input/`, `output/`,
-но **копию** `user/`: новая версия при старте мигрирует `comfyui.db`, и старая может её не открыть.
+но **копию** `user/` (`user-candidate/`, ключ `--user-directory`): новая версия при старте
+мигрирует `comfyui.db`, и старая может её не открыть.
 
-Порт у каждого модпака свой (8000 — основной, 8100+ — кандидаты обновлений).
-Ключи запуска ComfyUI хранятся в `modpack.yaml`, а не в скрипте на хосте.
+Порт у каждого модпака свой: `port:` в `modpack.yaml` — stable (`main`: 8100, на него настроено
+PWA-приложение), кандидат — `port+1` (8101). Ключи запуска ComfyUI хранятся в `modpack.yaml`, а не в скрипте на хосте.
+
+Образы модпака: `comfy-<имя>:<тег ядра>-<lock7>` (история сборок) и теги каналов `stable`, `candidate`, `prev`,
+которыми двигают `promote` / `rollback`. `core:` в `modpack.yaml` — тег ядра текущего `stable`.
 
 ## Раскладка репозитория (план)
 
@@ -134,12 +141,12 @@ ComfyUI_ROCM/
     check-core-import.py      ← импорт ядра при сборке (без GPU)
     patches/                  ← патчи ядра ComfyUI (0001-growmask-cpu.patch, …)
   modpacks/
+    Containerfile             ← слой 3, общий для всех модпаков (контекст генерирует tools/modpack.py)
     main/
-      modpack.yaml            ← базовое ядро, ключи запуска, порт, исключения pip
-      nodes.lock              ← ноды: репозиторий, коммит, патчи
+      modpack.yaml            ← тег ядра stable, порт, Manager, ключи запуска, pip.exclude/extra, dnf
+      nodes.lock              ← ноды: name, repo (URL или local), ref (SHA), patches
       patches/                ← патчи нод
       workflows/              ← эталонные воркфлоу для тестов (рабочие — в ~/ComfyUI/main/user)
-      Containerfile           ← слой 3 (генерируемый или общий шаблон)
     trellis2/
   var/                        ← вне git
     wheelhouse/               ← кэш колёс torch/ROCm
@@ -153,8 +160,10 @@ ComfyUI_ROCM/
     wheelhouse-sync           ← скачать колёса стека по versions.env в var/wheelhouse
     runtime-build             ← собрать слой 1 из wheelhouse
     runtime-test              ← GPU-смоук образа (tests/smoke/gpu_check.py)
-    comfy                     ← build core / run / stop / log / status / smoke / schema diff
-                                (update / promote / rollback — этап 3)
+    modpack.py                ← modpack.yaml/nodes.lock: env, контекст сборки, sync, node add/bump, latest-tag
+    comfy                     ← build core|NAME / run / stop / log / status / smoke / schema diff /
+                                sync / node add|bump / update / promote / rollback
+    comfyctl                  ← старт/стоп/рестарт для ярлыков рабочего стола (модпак main, PWA)
 ```
 
 Запуск контейнера (`tools/comfy run`): `--device /dev/kfd --device /dev/dri --group-add keep-groups

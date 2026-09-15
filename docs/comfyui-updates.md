@@ -26,16 +26,20 @@ torch в requirements не закреплён, поэтому обновлени
 
 | Канал | Что | Порт | Для чего |
 |---|---|---|---|
-| `stable` | проверенный тег | 8000 | ежедневная работа |
-| `candidate` | последний релизный тег | 8100 | проверка перед переходом |
-| `nightly` | master | 8200 | по запросу: попробовать свежий фикс или модель в день выхода |
+| `stable` | проверенный тег | `port` из `modpack.yaml` (`main`: 8100) | ежедневная работа |
+| `candidate` | последний релизный тег (или `--to master`) | `port+1` (8101) | проверка перед переходом |
+| `prev` | прежний stable | — | откат |
 
-Каналы — это теги образов модпака, а не отдельные установки.
+Каналы — это теги образов `comfy-<модпак>`, а не отдельные установки. «Nightly» — тот же `candidate`,
+собранный `update --to master`.
 
 ## Процедура
 
 ```
-tools/comfy update main --to latest        # или --to v0.35.1 / --to master
+bash tools/comfy update main --to latest    # или --to v0.35.2 / --to master
+bash tools/comfy run main --channel candidate   # ручная проверка на 8101, потом stop main --channel candidate
+bash tools/comfy promote main               # бэкап user/ → candidate→stable, stable→prev; core: в modpack.yaml
+bash tools/comfy rollback main [--user latest]  # stable↔prev; --user вернуть user/ из бэкапа
 ```
 
 1. **Выбор версии.** `git ls-remote --tags` ComfyUI, берём нужный тег.
@@ -47,9 +51,12 @@ tools/comfy update main --to latest        # или --to v0.35.1 / --to master
 4. **Автопроверки** (раздел ниже). Отчёт: что сломалось, что изменилось.
 5. **Ручная проверка** на порту 8100 своими воркфлоу. Тяжёлые прогоны — не параллельно
    с `stable`, память общая.
-6. **Promote.** Бэкап `user/` (в первую очередь `comfyui.db`), затем `candidate` → `stable`,
-   прежний `stable` → `prev`.
-7. **Rollback** — перетег `prev` → `stable` и возврат `user/` из бэкапа.
+6. **Promote.** Бэкап `user/` в `var/backups/<модпак>/user-<дата>.tar.gz` (в первую очередь `comfyui.db`),
+   затем `candidate` → `stable`, прежний `stable` → `prev`; `core:` в `modpack.yaml` — закоммитить.
+   Работающий контейнер остаётся на старом образе до рестарта (`bash tools/comfyctl restart`).
+7. **Rollback** — `stable` и `prev` меняются местами (повторный rollback возвращает всё назад);
+   `user/` не трогается, пока не сказано `--user latest|ФАЙЛ` (тогда текущий `user/` откладывается
+   в `user.before-rollback-<дата>`).
 
 ## Автопроверки
 

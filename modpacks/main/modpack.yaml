@@ -1,0 +1,31 @@
+# Модпак main — основная рабочая сборка (ADR-0002, ADR-0006).
+# Читают tools/comfy (через tools/modpack.py) при build / run / update / promote.
+
+name: main
+
+# Тег ядра comfy-core, на котором собран текущий stable. Меняет `tools/comfy promote`;
+# `tools/comfy build main --core REF` и `update --to REF` собирают candidate на другом.
+core: v0.35.1
+
+# Порт stable на хосте. Candidate поднимается на port+1 (8101).
+port: 8100
+
+# ComfyUI-Manager. Включён, пока состав нод подбирается (вариант B: ноды по потребности);
+# всё, что поставлено через Manager, `tools/comfy sync` покажет как лишнее, пока не попадёт
+# в nodes.lock через `tools/comfy node add`.
+manager: true
+
+# Ключи запуска ComfyUI (те же, что были в ~/bin/start_comfy_manager — не терять).
+args:
+  - --disable-mmap
+  - --gpu-only
+  - --bf16-vae
+
+# pip-зависимости нод при сборке образа.
+pip:
+  exclude:            # пакеты из requirements.txt нод, которые в образ не ставим
+    - pedalboard      # P2: колесо 0.9.25 даёт SIGILL на этом CPU, роняет весь ComfyUI
+  extra: []           # пакеты, которых нет в requirements нод, но они нужны (например, llama-cpp)
+
+# Системные пакеты Fedora для нод (ставятся dnf при сборке образа модпака).
+dnf: []

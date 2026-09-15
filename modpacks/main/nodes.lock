@@ -1,0 +1,10 @@
+# Состав custom_nodes модпака main. Один узел — один каталог ~/ComfyUI/main/custom_nodes/<name>.
+#   repo: URL git-репозитория или local (каталог без remote, хостинг не решён — не клонируется, только проверяется)
+#   ref:  полный SHA коммита (tools/comfy node bump обновляет)
+#   patches: файлы из modpacks/main/patches/, накладываются после checkout (tools/comfy sync --apply)
+# Правится командами tools/comfy node add | bump; sync сверяет папку с этим файлом.
+nodes:
+  - name: comfyui-rocm-halo
+    repo: local
+    ref: a6accafc041f35f02a61db8b43de6f2822282ea2
+    patches: []
