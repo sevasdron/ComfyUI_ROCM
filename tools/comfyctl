@@ -8,17 +8,29 @@ NAME=${COMFY_NAME:-core}
 PORT=${COMFY_PORT:-8100}
 URL="http://127.0.0.1:$PORT"
 TIMEOUT=240
+# Интерфейс открываем как установленное PWA-приложение Chrome (ярлык ComfyUIROCM на рабочем столе),
+# а не вкладкой. Id приложения — от start_url http://127.0.0.1:8100; COMFY_APP_ID= (пусто) → обычная вкладка.
+CHROME=/opt/google/chrome/google-chrome
+APP_ID=${COMFY_APP_ID-bdacbacgnmngpoplcdfnfinlmdmaceek}
+
+open_ui() {
+    if [ -n "$APP_ID" ] && [ -x "$CHROME" ]; then
+        setsid "$CHROME" --profile-directory=Default --app-id="$APP_ID" >/dev/null 2>&1 < /dev/null &
+    else
+        xdg-open "$URL" >/dev/null 2>&1 &
+    fi
+}
 
 msg() { echo "$*"; command -v notify-send >/dev/null && notify-send -a "ComfyUI ROCm Halo" "ComfyUI ROCm Halo" "$*"; }
 port_up() { curl -fs "$URL/system_stats" >/dev/null 2>&1; }
 running() { podman container exists "comfy-$NAME" 2>/dev/null && [ "$(podman inspect -f '{{.State.Running}}' "comfy-$NAME")" = true ]; }
 
 do_start() {
-    if port_up; then msg "Уже работает — открываю $URL"; xdg-open "$URL" >/dev/null 2>&1 & return 0; fi
+    if port_up; then msg "Уже работает — открываю $URL"; open_ui; return 0; fi
     running || podman container exists "comfy-$NAME" && bash "$ROOT/tools/comfy" stop "$NAME" >/dev/null 2>&1
     bash "$ROOT/tools/comfy" run "$NAME" --port "$PORT" --manager || { msg "Не смог запустить контейнер comfy-$NAME"; return 1; }
     for ((i = 0; i < TIMEOUT; i++)); do
-        port_up && { msg "ComfyUI ROCm Halo поднялся на $URL"; xdg-open "$URL" >/dev/null 2>&1 & return 0; }
+        port_up && { msg "ComfyUI ROCm Halo поднялся на $URL"; open_ui; return 0; }
         running || break
         sleep 1
     done
