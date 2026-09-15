@@ -21,6 +21,7 @@
 | P11 | torch защищён от подмены при установке нод | `PIP_CONSTRAINT` / `UV_CONSTRAINT` | runtime | — | — | **сделано в runtime** (14.09): `/opt/constraints.txt` + `ENV` в образе, копия `runtime/constraints.txt` |
 | P12 | BakeTextureFromVoxel: `voxel_colors.numpy()` на bf16-тензоре (`--bf16-vae`), numpy не знает bfloat16 | ComfyUI `comfy_extras/nodes_mesh_postprocess.py:418` | core | — | **не исправлено в master** (14.09) | **снято 14.09**: вместо патча — нода `RH Cast to float32` из пака ROCm Halo (`comfyui-rocm-halo`) после `VaeDecodeTextureTrellis`; пак дописывает подсказку в текст ошибки. Патч — кандидат в PR upstream |
 | P13 | TRELLIS.2: текстурный VAE отдаёт цвета вокселей в bf16 (`--bf16-vae`), дальше по цепочке `.numpy()` падает (MeshToFile3D, PaintMesh…) | ComfyUI `comfy_extras/nodes_trellis2.py:239` | core | — | **не исправлено в master** (14.09) | **снято 14.09**: то же, что P12 — нода `RH Cast to float32`. Правка `voxel.feats.float()` у источника — кандидат в PR upstream |
+| P14 | `Trellis2UpsampleStage` считает исходный латент формы всегда 512 (`lr_resolution = 512`): при structure resolution=64 (латент 1024) координаты удваиваются, меш выходит за куб ±0.5, `RemeshMesh` молча пуст | ComfyUI `comfy_extras/nodes_trellis2.py` (`lr_resolution = 512`) | node | — | **не исправлено в master** (15.09) | нода `RH Trellis2 Upsample Stage` (ROCm Halo): наследует upstream, `lr_resolution = coord_resolution × 16`; при 32 идентична оригиналу. Кандидат в PR upstream (1 строка) |
 
 ## Как добавлять
 

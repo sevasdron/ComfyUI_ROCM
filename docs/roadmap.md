@@ -38,6 +38,10 @@
 
 - **Начат 14.09**: собственный пак `comfyui-rocm-halo` («ROCm Halo», Node API V3, без JS), первая нода
   `RH Cast to float32` вместо патчей ядра P12/P13. Пока локальный git в `~/ComfyUI/core/custom_nodes/`, хостинг — позже.
+- 15.09: в паке 4 ноды — `RH Cast to float32`, `RH VAE Precision`, `RH Mesh Info`, `RH Trellis2 Upsample Stage` (P14:
+  structure resolution=64 в upstream не работает). Воркфлоу TRELLIS.2/pixal3d проходит на res 32 и 64.
+  Уроки V3: `lock_class` пересобирает класс ноды — никаких `super()` и атрибутов класса в `execute`; хук подсказки
+  оборачивает `execution.get_output_data`.
 - `tools/comfy update | promote | rollback`, `modpack.yaml`, сборка образа модпака из `nodes.lock`.
 - `nodes.lock` из текущих 42 каталогов: сопоставить 18 нод без git с репозиториями/версиями реестра,
   решить судьбу лишних (`comfyui_nvidia_rtx_nodes`, отключённый `_mtp_ND`).
