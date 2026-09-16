@@ -152,6 +152,19 @@ def cmd_context(a):
 
 # ---------- sync ----------
 
+def clean_status(status):
+    """git status --porcelain без мусора рантайма: ComfyUI пишет __pycache__ прямо в каталоги нод."""
+    keep = []
+    for l in status.splitlines():
+        if not l.strip():
+            continue
+        path = l.split(None, 1)[-1].strip('"')
+        if "__pycache__" in path or path.endswith((".pyc", ".pyo")):
+            continue
+        keep.append(l)
+    return "\n".join(keep)
+
+
 def patches_account_for(pack, n, ndir, dirty):
     """True, если все локальные правки — это наложенные патчи из nodes.lock (и ничего сверх них)."""
     patches = n.get("patches") or []
@@ -178,7 +191,7 @@ def node_state(n, ndir, pack=None):
     if not (ndir / ".git").exists():
         return "notgit", "каталог без git"
     head = git("rev-parse", "HEAD", cwd=ndir)
-    dirty = git("status", "--porcelain", cwd=ndir)
+    dirty = clean_status(git("status", "--porcelain", cwd=ndir))
     problems = []
     if n.get("repo") != "local":
         origin = git("remote", "get-url", "origin", cwd=ndir, check=False)
@@ -343,7 +356,7 @@ def cmd_bump(a):
     if n.get("repo") == "local":
         ref = git("rev-parse", "HEAD", cwd=ndir)
     else:
-        if git("status", "--porcelain", cwd=ndir):
+        if clean_status(git("status", "--porcelain", cwd=ndir)):
             die(f"{a.node}: есть локальные правки — закоммить или убери, потом bump")
         git("fetch", "-q", "origin", cwd=ndir)
         target = a.ref or git("rev-parse", "--abbrev-ref", "origin/HEAD", cwd=ndir, check=False) or "origin/HEAD"
