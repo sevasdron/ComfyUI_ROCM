@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Сводка по прогону: время выполнения из лога ComfyUI + пики памяти из лога tools/memsample.
+#
+#   bash tools/runstat var/logs/memsample-<имя>.log [NAME]
+#
+# NAME — модпак (по умолчанию main): из его контейнера берутся строки "Prompt executed in".
+# Печатает: время последних прогонов, пик VRAM/GTT/ОЗУ и среднюю загрузку GPU за время замера.
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+MEM=${1:?нужен лог memsample}
+NAME=${2:-main}
+[ -f "$MEM" ] || { echo "runstat: нет файла $MEM" >&2; exit 1; }
+
+echo "== прогоны (лог comfy-$NAME)"
+podman logs "comfy-$NAME" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' \
+    | grep -E "Prompt executed in|got prompt" | tail -8 | sed 's/^/   /'
+
+echo
+echo "== память за время замера ($(basename "$MEM"))"
+awk '
+    /vram=/ {
+        n++
+        split($0, f, " ")
+        for (i in f) {
+            split(f[i], kv, "=")
+            v = kv[2] + 0
+            if (kv[1] == "vram") { if (v > vram) vram = v }
+            else if (kv[1] == "gtt") { if (v > gtt) gtt = v }
+            else if (kv[1] == "ram_used") { if (v > ram) ram = v }
+            else if (kv[1] == "busy") { sub(/%/, "", kv[2]); busy += kv[2] + 0; if (kv[2] + 0 > 0) active++ }
+        }
+        if (first == "") first = $1
+        last = $1
+    }
+    END {
+        if (!n) { print "   замеров нет"; exit }
+        printf "   отсчётов %d (%s → %s, ~%d с)\n", n, first, last, n * 2
+        printf "   пик VRAM (carve-out) %.1f ГиБ | пик GTT %.1f ГиБ | пик ОЗУ %d ГиБ\n", vram, gtt, ram
+        printf "   GPU занят в среднем %.0f%%, отсчётов с ненулевой загрузкой %d из %d\n", busy / n, active, n
+    }
+' "$MEM"
