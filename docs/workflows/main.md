@@ -96,5 +96,14 @@ compute capability `(12, 0)` — это NVIDIA Blackwell, у нас услови
 - Выпадающий список `sage_attention` у `DiffusionModelLoaderKJ` (вход `#9425`) пробовать нельзя ни в одном варианте,
   включая `..._triton`: все они требуют пакет `sageattention`, которого в образе нет (`ModuleNotFoundError`).
   Оставлять `disabled`.
+- Бэкенд аттеншена выведен наружу тумблером: на ноде `#9425` вход `comfy_kitchen_attention` (BOOLEAN, по умолчанию
+  включён), внутри подграфа ленивый `If/Else Switch` выбирает между `Model Attention Backend` и моделью как есть.
+  Прежний список `sage_attention` с лицевой стороны убран (он ведёт в загрузчик KJNodes и на ROCm бесполезен).
+- В VVJ у автора более ранняя ревизия подграфа `ND Advanced Prompt`: наружу не выведены ни `reasoning`, ни
+  `memory_mode`, хотя у самой `LLMTextProcessor` эти входы есть (`reasoning`: auto / on / off). Режим размышления
+  выведен на ноду `#9430` отдельным входом; `memory_mode` при необходимости выводится так же.
+- `MiniMaxH3LatentLabLongMediaSetup` в режиме `h3_mode = hybrid` требует `image_1` (опорный первый кадр).
+  Режимы: `t2va` (только текст), `fl2va` (первый и необязательный последний кадр), `ref2va` (референсы),
+  `hybrid`, `video_ref_edit`.
 - Авторская висящая связь в подграфе `ND Advanced Prompt` (link 15206 на несуществующую ноду 5750) есть и в оригинале,
   правкой не тронута.
