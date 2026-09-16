@@ -38,6 +38,13 @@
   через HIP-ядра comfy-kitchen и даёт 2.0x на 8k токенов и 4.1x на 32k против SDPA. Проверить на прогоне (качество при
   `tau` 1.0–1.5). Пакет `ComfyUI-SolAttn_triton` убирать только после удачного прогона:
   `bash tools/comfy node rm main ComfyUI-SolAttn_triton`.
+- В подграфе `MiniMax H3 Model Loader` (нода `#9425`) бэкенд выбирается виджетом `choice`:
+  `comfy_kitchen_attention` / `sage_attention` / `none`. Внутри уже стоит нода ядра `Model Attention Backend`
+  с выбранным `comfy kitchen attention`, на неё ведёт ветка `comfy_kitchen_attention`. Соседний `switch`
+  включает ветку с `SolAttnPatch` — держим `False`.
+- `MiniMaxH3MemoryEfficientSageAttentionPatch` `#9825` стоит **вне** этого выбора и срабатывает при любом
+  значении `choice`: на прогоне 16.09 она уронила воркфлоу (`sageattention is not new enough version…`).
+  Ставить ей Bypass.
 - `MiniMaxH3MemoryEfficientSageAttentionPatch` — кандидат на замену `Model Attention Backend` с backend
   `comfy kitchen attention` (INT8-аттеншен, на синтетике cos 0.99988 к fp32). Если на прогоне не пойдёт — прежний
   Bypass остаётся рабочим вариантом.

@@ -19,10 +19,12 @@ nodes:
     status: replace
     with: 'Model Attention Backend (ядро), backend = "comfy kitchen attention"'
     why: >
-      SageAttention собран под NVIDIA, на ROCm пакета нет (P6). INT8-аттеншен comfy-kitchen идёт через
-      HIP-ядра WMMA и на gfx1151 работает: cos 0.99988 к fp32, скорость 0.9x от SDPA, память ниже за счёт
-      int8 Q/K/V. Прежнее решение (Bypass) пока остаётся запасным: заменой на прогоне ещё не проверено.
-    verified: bench
+      Прогон 16.09 подтвердил: нода падает с RuntimeError "sageattention is not new enough version or could not
+      determine CUDA architecture" — пакета sageattention под ROCm нет (P6). Замена: INT8-аттеншен comfy-kitchen
+      через HIP-ядра WMMA, на синтетике cos 0.99988 к fp32 и 0.9x скорости SDPA; на прогоне ещё не подтверждена.
+      Пока не подтверждена — Bypass этой ноды остаётся рабочим вариантом.
+    verified: run          # что нода не работает — подтверждено прогоном
+    replacement_verified: bench
   LTX2MemoryEfficientSageAttentionPatch:
     status: replace
     with: 'Model Attention Backend, backend = "comfy kitchen attention"'
