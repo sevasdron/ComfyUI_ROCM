@@ -1,0 +1,32 @@
+diff --git a/nodes/MMH3_Split_Upscale.py b/nodes/MMH3_Split_Upscale.py
+index 92b87d7..3bf82ee 100644
+--- a/nodes/MMH3_Split_Upscale.py
++++ b/nodes/MMH3_Split_Upscale.py
+@@ -515,6 +515,11 @@ class MMH3SplitUpscale(io.ComfyNode):
+         if not is_h3_av_latent(samples):
+             raise ValueError("期望 MiniMax H3 AV latent (嵌套 video+audio)")
+         video, audio = samples.tensors[0], samples.tensors[1]
++        # The two halves can arrive from different nodes on different devices;
++        # pack_latents() concatenates them and requires a single device.
++        work_device = comfy.model_management.intermediate_device()
++        video = video.to(work_device)
++        audio = audio.to(work_device)
+         if video.shape[0] != 1:
+             raise ValueError("仅支持 Batch 1")
+         B, C, T, H, W = video.shape
+diff --git a/nodes/minimax_h3_latent_upscaler_3d.py b/nodes/minimax_h3_latent_upscaler_3d.py
+index c4eae28..9bfeff2 100644
+--- a/nodes/minimax_h3_latent_upscaler_3d.py
++++ b/nodes/minimax_h3_latent_upscaler_3d.py
+@@ -594,7 +594,10 @@ class MinimaxH3LatentUpscaler3D(io.ComfyNode):
+         if was_4d:
+             out = out.squeeze(2)
+ 
+-        out = out.to(device="cpu", dtype=orig_dtype, non_blocking=True)
++        # Return on ComfyUI's intermediate device: a hardcoded "cpu" leaves the
++        # video latent on CPU while the paired audio latent stays on the GPU.
++        out_device = mm.intermediate_device() if HAS_COMFY_MM else "cpu"
++        out = out.to(device=out_device, dtype=orig_dtype, non_blocking=True)
+ 
+         # 4. VRAM Management
+         if dev.type == "cuda":

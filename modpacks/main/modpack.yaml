@@ -26,6 +26,9 @@ pip:
   exclude:            # пакеты из requirements.txt нод, которые в образ не ставим
     - pedalboard      # P2: колесо 0.9.25 даёт SIGILL на этом CPU, роняет весь ComfyUI
     - sam2            # comfyui-impact-pack: git+https сборка SAM2 (CUDA-расширение); для ImpactStringSelector не нужна
+    - ultralytics     # ComfyUI-Mickmumpitz-Nodes: только YOLO-детектор (импорт ленивый, с понятной ошибкой); нам нужны AudioExists/ImageExists
+    - opencv-python   # поверх opencv-python-headless из ядра: два cv2 в одном venv
+    - opencv-contrib-python  # то же; ComfyUI_LayerStyle берёт guidedFilter в try/except и живёт без contrib
   extra: []           # пакеты, которых нет в requirements нод, но они нужны (например, llama-cpp)
 
 # Системные пакеты Fedora для нод (ставятся dnf при сборке образа модпака).

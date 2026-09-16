@@ -48,3 +48,31 @@ nodes:
     repo: https://github.com/rgthree/rgthree-comfy
     ref: 2c5342a8cb0eaecaabf61435a5f37dd594c510ba
     patches: []
+  - name: ComfyUI-AudioBatch
+    repo: https://github.com/set-soft/ComfyUI-AudioBatch
+    ref: 3930594171225c7a3445093cd17b162c540a160d
+    patches: []
+  - name: ComfyUI-Mickmumpitz-Nodes
+    repo: https://github.com/mickmumpitz/ComfyUI-Mickmumpitz-Nodes
+    ref: 2b0caf2e4eaec727704d63738aa4b2f92a350696
+    patches: []
+  - name: ComfyUI-Spectrum-MiniMax-H3
+    repo: https://github.com/xmarre/ComfyUI-Spectrum-MiniMax-H3
+    ref: 120d72e2f48b781235b34149e39bbdf0f1317d82
+    patches: []
+  - name: ComfyUI_LayerStyle
+    repo: https://github.com/chflame163/ComfyUI_LayerStyle
+    ref: a3459a7638c4c2839878089c105c73af0eb2edd2
+    patches: []
+  - name: ComfyUI-Fantastic-MiniMaxH3-PromptBuilder
+    repo: https://github.com/Adudeguyman/ComfyUI-Fantastic-MiniMaxH3-PromptBuilder
+    ref: 23038f5050acdcbb8e938bfd7c87a18d2cc84aab
+    patches: []
+  - name: ComfyUI-SolAttn_triton
+    repo: https://github.com/kijai/ComfyUI-SolAttn_triton
+    ref: 26d816ebd4f1e43a2c6e4d4759be3137f10a7a73
+    patches: []
+  - name: Comfyui_Minimax_h3_latent_Upscaler
+    repo: https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler
+    ref: d7c01b9011f2e8439493f6c02c29995a27df276f
+    patches: [minimax-upscaler-device-fix.patch]
