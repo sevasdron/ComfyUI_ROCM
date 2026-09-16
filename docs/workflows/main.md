@@ -42,9 +42,13 @@
   `comfy_kitchen_attention` / `sage_attention` / `none`. Внутри уже стоит нода ядра `Model Attention Backend`
   с выбранным `comfy kitchen attention`, на неё ведёт ветка `comfy_kitchen_attention`. Соседний `switch`
   включает ветку с `SolAttnPatch` — держим `False`.
-- `MiniMaxH3MemoryEfficientSageAttentionPatch` `#9825` стоит **вне** этого выбора и срабатывает при любом
-  значении `choice`: на прогоне 16.09 она уронила воркфлоу (`sageattention is not new enough version…`).
-  Ставить ей Bypass.
+- `MiniMaxH3MemoryEfficientSageAttentionPatch` `#9825` стоит **вне** этого выбора (после переключателя, перед
+  `MiniMaxChunkFeedForward`) и срабатывает при любом значении `choice`: на прогоне 16.09 она уронила воркфлоу
+  (`sageattention is not new enough version…`). Ставить ей Bypass.
+- Обе развилки ленивые, невыбранная ветка не исполняется: `If/Else Switch` ядра (`#9752`) объявляет `on_true`/`on_false`
+  lazy и реализует `check_lazy_status`, `SwitchCase` из basic_data_handling — так же по `select`. Отсюда два следствия:
+  `SolAttnPatch` `#9751` при `switch = False` не вызывается, а при `choice = none` не вызывается и сама
+  `Model Attention Backend`, то есть INT8-бэкенд остаётся выключенным.
 - `MiniMaxH3MemoryEfficientSageAttentionPatch` — кандидат на замену `Model Attention Backend` с backend
   `comfy kitchen attention` (INT8-аттеншен, на синтетике cos 0.99988 к fp32). Если на прогоне не пойдёт — прежний
   Bypass остаётся рабочим вариантом.
