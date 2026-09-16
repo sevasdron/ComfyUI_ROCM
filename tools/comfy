@@ -381,7 +381,19 @@ cmd_promote() {
     podman tag "$img:candidate" "$img:stable"
     echo "candidate ($ref) → stable"
     # Снимок схемы кандидата становится снимком stable (для следующего diff).
-    copy_snap "$img:candidate" "$img:stable"
+    # Снимок схемы кандидата становится снимком stable — но только если он снимался для ЭТОГО образа
+    # (иначе promote затирает свежую схему устаревшей: так было 16.09 после добавления LongMedia).
+    local snap; snap=$(schema_snap "$img:candidate")
+    if [ -f "$snap" ]; then
+        local img_time snap_time
+        img_time=$(date -d "$(podman inspect -f '{{.Created}}' "$img:candidate")" +%s)
+        snap_time=$(stat -c %Y "$snap")
+        if [ "$snap_time" -ge "$img_time" ]; then
+            copy_snap "$img:candidate" "$img:stable"
+        else
+            echo "схема кандидата старше образа — снимок stable не трогаю; сними заново: python3 tests/schema/dump.py http://127.0.0.1:$MP_PORT $(schema_snap "$img:stable")"
+        fi
+    fi
     if [ -n "$ref" ] && [ "$ref" != "$MP_CORE" ]; then
         sed -i "s/^core: .*/core: $ref/" "$ROOT/modpacks/$name/modpack.yaml"
         echo "modpacks/$name/modpack.yaml: core: $MP_CORE → $ref (закоммить)"
