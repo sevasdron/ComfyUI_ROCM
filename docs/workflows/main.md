@@ -19,6 +19,7 @@
 | `Image/ND/ND_Krea2_Ultimate_TI2I_v1.4` | ND, Influencer Build v4.7 | basic_data_handling, Easy-Use, Impact-Pack, Inpaint-CropAndStitch, KJNodes, krea2edit, LLM-text-processor (P3), mxToolkit, Comfyroll, rgthree | 15.09: образ `v0.35.1-66685a5` в stable, все 58 типов нод есть; прогон — ждёт выбора CLIP |
 | `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v3.0_WIP_1` | ND, Influencer Build v4.7 | + AudioBatch, Mickmumpitz, Spectrum-MiniMax-H3, LayerStyle, Fantastic-MiniMaxH3-PromptBuilder, SolAttn_triton, Minimax_h3_latent_Upscaler (P4) | 16.09: ноды добавлены, файл воркфлоу — с внешнего диска, когда примонтирован |
 | `ND_YuE2_T2M_…` | ND | — | очередь |
+| — | — | `ComfyUI-MiniMax-H3-LongMedia` (35 нод: Planner, Director, Cameras, Setup/NextSegment, Prepare/StitchContinuation, LipSyncSetup, VRAMPressureGuard) | 16.09 добавлен под длинные видео, не проверен |
 
 Заметки:
 - Krea2 v1.4 из Influencer Build цел: LoRA-нода `#170 Krea 2 Loras` подключена. Обрыв связей из CHANGES.md §10 был
@@ -55,3 +56,20 @@
 - Из `Mickmumpitz` нужны только `AudioExists` / `ImageExists`; `ultralytics` (YOLO-детектор) исключён из pip — импорт там
   ленивый. В `LayerStyle` нужна одна `ImageScaleByAspectRatio V2`; `opencv-contrib-python` исключён, `guidedFilter`
   у пакета под try/except.
+
+## Длинные видео: MiniMax H3 LongMedia
+
+Пакет `vizart-vj/ComfyUI-MiniMax-H3-LongMedia` (реестр: `minimax-h3-longmedia`) добавлен 16.09 как кандидат под
+задачу «длинный ролик из цепочки коротких»: планирование клипов, непрерывность между сегментами, липсинк,
+режимы под нехватку памяти. Конфликтов имён классов с установленными пакетами нет, своих pip-зависимостей нет.
+
+Что учесть на ROCm: собственные ядра пакета (`sol_kernel/sm120.py`, `fusions_sm120.py`) включаются только при
+compute capability `(12, 0)` — это NVIDIA Blackwell, у нас условие не выполняется и пакет идёт обычным путём.
+Ускорение на нашей машине даёт не он, а `Model Attention Backend` = `comfy kitchen attention` (см.
+[rocm-accelerators.md](../rocm-accelerators.md)).
+
+Родственное, что уже установлено и решает ту же задачу другими средствами: набор Mickmumpitz (`FrameContextFit`,
+`AnchorFrameExtractor`, `EndFrameInjector`, `IterationSwitch`, `ControlCrossfadeIterationFix`, `VideoConcatenate`),
+циклы Easy-Use (`For Loop Start/End`, `While Loop Start/End`), `TensorLoopOpen/Close` и `ImageBatchExtendWithOverlap`
+из KJNodes, контекстные окна ядра (`Context Windows (Manual)`, `Wan Context Windows`, `LTXV Context Windows`)
+и `Add Guide for MiniMax H3` для якорей персонажей.

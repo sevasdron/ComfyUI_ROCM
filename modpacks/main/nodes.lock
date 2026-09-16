@@ -76,3 +76,7 @@ nodes:
     repo: https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler
     ref: d7c01b9011f2e8439493f6c02c29995a27df276f
     patches: [minimax-upscaler-device-fix.patch]
+  - name: ComfyUI-MiniMax-H3-LongMedia
+    repo: https://github.com/vizart-vj/ComfyUI-MiniMax-H3-LongMedia
+    ref: 3c9681345e563ea6ec54c1b2e4b60d292a84701c
+    patches: []

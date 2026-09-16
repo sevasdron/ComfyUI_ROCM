@@ -20,11 +20,11 @@ nodes:
     with: 'Model Attention Backend (ядро), backend = "comfy kitchen attention"'
     why: >
       Прогон 16.09 подтвердил: нода падает с RuntimeError "sageattention is not new enough version or could not
-      determine CUDA architecture" — пакета sageattention под ROCm нет (P6). Замена: INT8-аттеншен comfy-kitchen
-      через HIP-ядра WMMA, на синтетике cos 0.99988 к fp32 и 0.9x скорости SDPA; на прогоне ещё не подтверждена.
-      Пока не подтверждена — Bypass этой ноды остаётся рабочим вариантом.
+      determine CUDA architecture" — пакета sageattention под ROCm нет (P6). Замена подтверждена тем же днём на
+      воркфлоу MiniMax H3 2-Stages: шаг сэмплинга 79.5 с против 417 с у pytorch SDPA (5.25x), ценой +17 ГиБ ОЗУ.
+      Ставим Model Attention Backend = comfy kitchen attention, Sage-ноду удаляем.
     verified: run          # что нода не работает — подтверждено прогоном
-    replacement_verified: bench
+    replacement_verified: run
   LTX2MemoryEfficientSageAttentionPatch:
     status: replace
     with: 'Model Attention Backend, backend = "comfy kitchen attention"'
