@@ -12,6 +12,16 @@
 # verified: чем подтверждено — run (настоящий прогон воркфлоу) | bench (синтетика tools/comfy attn-bench) |
 #   docs (только документация/код пакета) | no. Пока не run — замена остаётся кандидатом, проверяем на прогоне.
 
+# Ноды, которые живут только во фронтенде (JS) и в /object_info не попадают: их «отсутствие» в схеме — не повод
+# ставить пакет. tools/workflow-deps.py вычитает их из списка недостающих.
+frontend_only:
+  - Fast Bypasser (rgthree)
+  - Fast Groups Bypasser (rgthree)
+  - Fast Groups Muter (rgthree)
+  - Fast Muter (rgthree)
+  - Node Collector (rgthree)
+  - Label (rgthree)
+
 nodes:
 
   # --- аттеншен ---------------------------------------------------------------------------------
@@ -84,6 +94,14 @@ nodes:
     with: RH Cast to float32 после ноды
     why: текстурный VAE отдаёт bf16 при --bf16-vae (P13).
     verified: run
+
+  Sigmas Split:
+    status: replace
+    with: SplitSigmas (ядро)
+    why: >
+      нода из RES4LYF; ради одного деления расписания сигм тащить большой пакет сэмплеров не нужно —
+      в ядре есть SplitSigmas (и SplitSigmasDenoise). Проверить соответствие параметров при подстановке.
+    verified: docs
 
   # --- NVIDIA-only ------------------------------------------------------------------------------
   NVIDIA_RTXVideoEnhance:

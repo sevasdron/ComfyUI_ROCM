@@ -44,11 +44,12 @@ def load_inventory():
 
 
 def load_policy(modpack):
-    """modpacks/<модпак>/node-policy.yaml — что на нашем железе заменяем/обходим и где нужны свои ноды."""
+    """modpacks/<модпак>/node-policy.yaml → (правила по нодам, типы только-фронтендных нод)."""
     pf = ROOT / "modpacks" / modpack / "node-policy.yaml"
     if not pf.exists():
-        return {}
-    return (yaml.safe_load(pf.read_text(encoding="utf-8")) or {}).get("nodes") or {}
+        return {}, set()
+    doc = yaml.safe_load(pf.read_text(encoding="utf-8")) or {}
+    return (doc.get("nodes") or {}), set(doc.get("frontend_only") or [])
 
 
 def load_lock(modpack):
@@ -166,7 +167,7 @@ def report_policy(used, missing_types, policy):
             print(f"         {why}")
 
 
-def analyze(path, schema, inventory, lock, schema_full=None, policy=None):
+def analyze(path, schema, inventory, lock, schema_full=None, policy=None, frontend_only=frozenset()):
     wf = json.loads(Path(path).read_text(encoding="utf-8"))
     subgraph_ids = {sg.get("id") for sg in (wf.get("definitions") or {}).get("subgraphs") or []} if isinstance(wf, dict) else set()
     total = 0
@@ -174,7 +175,7 @@ def analyze(path, schema, inventory, lock, schema_full=None, policy=None):
     missing = defaultdict(lambda: defaultdict(set))   # пакет → тип → версии
     pkg_ver = {}
     for t, props in iter_nodes(wf):
-        if not t or t in subgraph_ids or t in FRONTEND_ONLY:
+        if not t or t in subgraph_ids or t in FRONTEND_ONLY or t in frontend_only:
             continue
         total += 1
         if t in schema:
@@ -230,11 +231,12 @@ def main():
     schema_full = json.loads(raw.read_text(encoding="utf-8")) if raw.exists() else None
     if schema_full is None:
         print(f"(нет {raw.name} — сверка виджетов пропущена; сними заново: bash tools/comfy smoke {a.modpack})")
-    inventory, lock, policy = load_inventory(), load_lock(a.modpack), load_policy(a.modpack)
+    inventory, lock = load_inventory(), load_lock(a.modpack)
+    policy, frontend_only = load_policy(a.modpack)
     print(f"схема: {sp.name} ({len(schema)} типов), справочник: {len(inventory)//3} пакетов, nodes.lock {a.modpack}: {len(set(id(v) for v in lock.values()))}, политика: {len(policy)} нод")
     all_pkgs = set()
     for f in a.files:
-        all_pkgs |= set(analyze(f, schema, inventory, lock, schema_full, policy))
+        all_pkgs |= set(analyze(f, schema, inventory, lock, schema_full, policy, frontend_only))
     if len(a.files) > 1:
         print(f"\nвсего пакетов на все файлы: {len(all_pkgs)}: {', '.join(sorted(all_pkgs, key=str.lower))}")
 

@@ -19,7 +19,8 @@
 | `Image/ND/ND_Krea2_Ultimate_TI2I_v1.4` | ND, Influencer Build v4.7 | basic_data_handling, Easy-Use, Impact-Pack, Inpaint-CropAndStitch, KJNodes, krea2edit, LLM-text-processor (P3), mxToolkit, Comfyroll, rgthree | 15.09: образ `v0.35.1-66685a5` в stable, все 58 типов нод есть; прогон — ждёт выбора CLIP |
 | `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v3.0_WIP_1` | ND, Influencer Build v4.7 | + AudioBatch, Mickmumpitz, Spectrum-MiniMax-H3, LayerStyle, Fantastic-MiniMaxH3-PromptBuilder, SolAttn_triton, Minimax_h3_latent_Upscaler (P4) | 16.09: ноды добавлены, файл воркфлоу — с внешнего диска, когда примонтирован |
 | `ND_YuE2_T2M_…` | ND | — | очередь |
-| — | — | `ComfyUI-MiniMax-H3-LongMedia` (35 нод: Planner, Director, Cameras, Setup/NextSegment, Prepare/StitchContinuation, LipSyncSetup, VRAMPressureGuard) | 16.09 добавлен под длинные видео, не проверен |
+| `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v2.0` | ND | + `ComfyUI-MiniMax-H3-LongMedia` | 16.09: готовый воркфлоу автора на LongMedia, всё остальное уже есть; ждёт перезапуска и прогона |
+| `Video/ND/ND_MiniMax_H3_Ultimate_VVJ_v2.1` | ND | + LongMedia, `Sigmas Split` заменить на `SplitSigmas` ядра | 16.09: скопирован, требует одной замены ноды |
 
 Заметки:
 - Krea2 v1.4 из Influencer Build цел: LoRA-нода `#170 Krea 2 Loras` подключена. Обрыв связей из CHANGES.md §10 был
@@ -58,6 +59,14 @@
   у пакета под try/except.
 
 ## Длинные видео: MiniMax H3 LongMedia
+
+У автора ND уже есть два готовых воркфлоу на этом пакете, оба на MiniMax H3 (на LTX 2.5 таких нет):
+`ND_MiniMax_H3_Ultimate_2-Stages_v2.0` (10 нод LongMedia: Setup, два Sampler, Decode, PackAV/SplitAV, VRAMCacheCleanup)
+и `ND_MiniMax_H3_Ultimate_VVJ_v2.1` (7 нод). Первому, кроме самого LongMedia, ничего не нужно — остальные пакеты
+у нас стоят. Второму нужна ещё `Sigmas Split` из RES4LYF, вместо которой берём `SplitSigmas` ядра
+(тащить пакет сэмплеров ради одной ноды не будем). `Fast Bypasser (rgthree)` — фронтендовая нода, она в схеме
+не появляется и пакета не требует; такие типы перечислены в `frontend_only` политики.
+
 
 Пакет `vizart-vj/ComfyUI-MiniMax-H3-LongMedia` (реестр: `minimax-h3-longmedia`) добавлен 16.09 как кандидат под
 задачу «длинный ролик из цепочки коротких»: планирование клипов, непрерывность между сегментами, липсинк,
