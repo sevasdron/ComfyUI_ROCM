@@ -10,6 +10,7 @@
                                                             добавить ноду в папку и в nodes.lock
   python3 tools/modpack.py bump NAME NODES_DIR NODE [REF]   перевести ноду на REF (по умолчанию origin/HEAD)
   python3 tools/modpack.py patch NAME NODES_DIR NODE FILE   прописать патч из modpacks/NAME/patches узлу и наложить
+  python3 tools/modpack.py rm NAME NODES_DIR NODE [--keep]  убрать ноду из nodes.lock и из custom_nodes
   python3 tools/modpack.py latest-tag REPO_URL              последний релизный тег ComfyUI (vX.Y.Z)
 
 nodes.lock правится текстом (append / замена строки ref), а не yaml.dump: сохраняем комментарии и порядок.
@@ -398,6 +399,30 @@ def cmd_patch(a):
     print(f"{a.node}: {a.patch} наложен")
 
 
+def cmd_rm(a):
+    """Убрать ноду из nodes.lock и (по умолчанию) её каталог."""
+    pack, cfg, nodes = load_pack(a.name)
+    n = next((x for x in nodes if x["name"] == a.node), None) or die(f"{a.node} нет в nodes.lock")
+    lf = pack / "nodes.lock"
+    lines = lf.read_text(encoding="utf-8").splitlines(keepends=True)
+    i = next(k for k, l in enumerate(lines) if re.match(rf"^\s*-\s*name:\s*{re.escape(a.node)}\s*$", l))
+    j = i + 1
+    while j < len(lines) and not re.match(r"^\s*-\s*name:", lines[j]):
+        j += 1
+    lf.write_text("".join(lines[:i] + lines[j:]), encoding="utf-8")
+    print(f"nodes.lock: убран {a.node}")
+    ndir = Path(a.nodes_dir) / a.node
+    if a.keep or not ndir.is_dir():
+        print(f"каталог {ndir} оставлен" if ndir.is_dir() else "каталога нет")
+    else:
+        dirty = clean_status(git("status", "--porcelain", cwd=ndir, check=False))
+        if dirty and not (n.get("patches") and patches_account_for(pack, n, ndir, dirty)):
+            die(f"{a.node}: в каталоге есть правки — разберись и повтори с --keep:\n{dirty}")
+        shutil.rmtree(ndir)
+        print(f"каталог {ndir} удалён")
+    print(f"зависимости уйдут из образа после: bash tools/comfy build {a.name}")
+
+
 # ---------- latest-tag ----------
 
 def cmd_latest_tag(a):
@@ -427,6 +452,8 @@ def main():
     s.add_argument("ref", nargs="?"); s.set_defaults(f=cmd_bump)
     s = sp.add_parser("patch"); s.add_argument("name"); s.add_argument("nodes_dir"); s.add_argument("node")
     s.add_argument("patch"); s.set_defaults(f=cmd_patch)
+    s = sp.add_parser("rm"); s.add_argument("name"); s.add_argument("nodes_dir"); s.add_argument("node")
+    s.add_argument("--keep", action="store_true", help="каталог ноды не удалять"); s.set_defaults(f=cmd_rm)
     s = sp.add_parser("latest-tag"); s.add_argument("repo"); s.set_defaults(f=cmd_latest_tag)
     a = p.parse_args()
     if a.cmd == "add" and not a.url and not a.local:

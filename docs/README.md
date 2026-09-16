@@ -23,6 +23,7 @@
 | [architecture.md](architecture.md) | целевая архитектура: слои образов, модпаки, данные |
 | [comfyui-updates.md](comfyui-updates.md) | как обновляемся на новые версии ComfyUI: каналы, проверки, откат |
 | [patches-registry.md](patches-registry.md) | все правки и обходы, их статус и судьба при обновлениях |
+| [rocm-accelerators.md](rocm-accelerators.md) | что из ускорителей работает на gfx1151 (HIP, Triton, INT8, sol-attn) и чем заменять NVIDIA-ноды |
 | [workflows/main.md](workflows/main.md) | воркфлоу модпака `main`: источник, пакеты нод, статус |
 | [nodes-inventory.md](nodes-inventory.md) | справочник 42 нод старого toolbox: репозитории, версии, правки — для `node add` |
 | [roadmap.md](roadmap.md) | этапы работ и открытые вопросы |

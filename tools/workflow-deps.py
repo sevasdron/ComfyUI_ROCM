@@ -9,7 +9,8 @@ properties.cnr_id / aux_id, которые фронтенд пишет в каж
 Сверка виджетов (эвристика, по сырому /object_info рядом со снимком): число widgets_values каждой ноды
 против числа виджетов в схеме. Ловит вставку/удаление входов в середине (сдвиг значений, как с LLMTextProcessor).
 Шум: ноды ядра, сохранённые старой версией, фронтенд мигрирует сам — смотреть на [сохранена: пакет версия].
-Вызов через tools/comfy workflow deps ФАЙЛ...
+Ноды из modpacks/<модпак>/node-policy.yaml помечаются отдельно: что на gfx1151 не работает, чем заменить,
+где нужна наша нода из пака ROCm Halo. Вызов через tools/comfy workflow deps ФАЙЛ...
 """
 import argparse
 import json
@@ -40,6 +41,14 @@ def load_inventory():
         inv[url.rstrip("/").rsplit("/", 1)[-1].lower()] = (url, note)
         inv[url.lower().removeprefix("https://github.com/")] = (url, note)
     return inv
+
+
+def load_policy(modpack):
+    """modpacks/<модпак>/node-policy.yaml — что на нашем железе заменяем/обходим и где нужны свои ноды."""
+    pf = ROOT / "modpacks" / modpack / "node-policy.yaml"
+    if not pf.exists():
+        return {}
+    return (yaml.safe_load(pf.read_text(encoding="utf-8")) or {}).get("nodes") or {}
 
 
 def load_lock(modpack):
@@ -131,7 +140,29 @@ def widget_mismatches(wf, schema_full):
     return res, dynamic
 
 
-def analyze(path, schema, inventory, lock, schema_full=None):
+MARK = {"replace": "заменить", "bypass": "обойти (Bypass)", "ours": "наша нода", "caution": "внимание", "ok": "проверено"}
+
+
+def report_policy(used, missing_types, policy):
+    """Пометки политики для нод, реально встречающихся в воркфлоу."""
+    hits = [(t, policy[t]) for t in sorted(used | missing_types) if t in policy and policy[t].get("status") != "ok"]
+    if not hits:
+        return
+    print("   железо и замены (node-policy.yaml):")
+    for t, rule in hits:
+        st = str(rule.get("status", "?"))
+        head = f"      {MARK.get(st, st)}: {t}"
+        if rule.get("with"):
+            head += f" → {rule['with']}"
+        if t in missing_types and st in ("replace", "bypass"):
+            head += "   [ноды нет в модпаке — пакет можно не ставить]"
+        print(head)
+        why = " ".join(str(rule.get("why", "")).split())
+        if why:
+            print(f"         {why}")
+
+
+def analyze(path, schema, inventory, lock, schema_full=None, policy=None):
     wf = json.loads(Path(path).read_text(encoding="utf-8"))
     subgraph_ids = {sg.get("id") for sg in (wf.get("definitions") or {}).get("subgraphs") or []} if isinstance(wf, dict) else set()
     total = 0
@@ -150,6 +181,8 @@ def analyze(path, schema, inventory, lock, schema_full=None):
         if props.get("ver"):
             pkg_ver[pkg] = str(props["ver"])[:7]
 
+    used = set(present)
+    missing_types = {t for pkg in missing for t in missing[pkg]}
     print(f"\n{path}")
     print(f"   нод: {total}, типов есть в схеме: {len(present)}, не хватает типов: {sum(len(v) for v in missing.values())} из {len(missing)} пакетов")
     for pkg in sorted(missing, key=lambda p: (p == "?", p.lower())):
@@ -164,6 +197,8 @@ def analyze(path, schema, inventory, lock, schema_full=None):
             print(f"      ! {inv[1]}")
         for t in sorted(missing[pkg]):
             print(f"      - {t}")
+    if policy:
+        report_policy(used, missing_types, policy)
     if schema_full is not None and isinstance(wf, dict) and "nodes" in wf:
         mm, dynamic = widget_mismatches(wf, schema_full)
         if dynamic:
@@ -191,11 +226,11 @@ def main():
     schema_full = json.loads(raw.read_text(encoding="utf-8")) if raw.exists() else None
     if schema_full is None:
         print(f"(нет {raw.name} — сверка виджетов пропущена; сними заново: bash tools/comfy smoke {a.modpack})")
-    inventory, lock = load_inventory(), load_lock(a.modpack)
-    print(f"схема: {sp.name} ({len(schema)} типов), справочник: {len(inventory)//3} пакетов, nodes.lock {a.modpack}: {len(set(id(v) for v in lock.values()))}")
+    inventory, lock, policy = load_inventory(), load_lock(a.modpack), load_policy(a.modpack)
+    print(f"схема: {sp.name} ({len(schema)} типов), справочник: {len(inventory)//3} пакетов, nodes.lock {a.modpack}: {len(set(id(v) for v in lock.values()))}, политика: {len(policy)} нод")
     all_pkgs = set()
     for f in a.files:
-        all_pkgs |= set(analyze(f, schema, inventory, lock, schema_full))
+        all_pkgs |= set(analyze(f, schema, inventory, lock, schema_full, policy))
     if len(a.files) > 1:
         print(f"\nвсего пакетов на все файлы: {len(all_pkgs)}: {', '.join(sorted(all_pkgs, key=str.lower))}")
 

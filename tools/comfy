@@ -11,10 +11,12 @@
 #   bash tools/comfy node add NAME URL [--name N] [--ref R]   нода → custom_nodes и nodes.lock (или --local DIR)
 #   bash tools/comfy node bump NAME NODE [REF]     перевести ноду на REF (по умолчанию origin/HEAD), обновить nodes.lock
 #   bash tools/comfy node patch NAME NODE FILE     патч modpacks/NAME/patches/FILE → nodes.lock и в каталог ноды
+#   bash tools/comfy node rm NAME NODE [--keep]    убрать ноду из nodes.lock и из custom_nodes (--keep: каталог не трогать)
 #   bash tools/comfy update NAME [--to REF|latest] ядро REF → модпак :candidate → smoke на port+1 с копией user/ → diff схемы
 #   bash tools/comfy promote NAME                  бэкап user/ → candidate→stable, stable→prev, core: в modpack.yaml
 #   bash tools/comfy rollback NAME [--user latest|ФАЙЛ]   stable↔prev; --user: вернуть user/ из бэкапа
-#   bash tools/comfy workflow deps ФАЙЛ.json [...]  каких нод нет в схеме main и из каких пакетов они (tools/workflow-deps.py)
+#   bash tools/comfy workflow deps ФАЙЛ.json [...]  каких нод нет в схеме, пакеты из справочника, замены по node-policy.yaml
+#   bash tools/comfy attn-bench [NAME]            бэкенды аттеншена на этом GPU: скорость, память, точность
 #
 # NAME = core (голое ядро, данные ~/ComfyUI/core) или модпак из modpacks/NAME (порт, ключи, Manager — из modpack.yaml).
 # Опции run/smoke:
@@ -303,8 +305,8 @@ cmd_node() {
     shift 2
     load_modpack "$name"
     case "$op" in
-        add|bump|patch) python3 "$MODPACK_PY" "$op" "$name" "$COMFY_HOME/$name/custom_nodes" "$@" ;;
-        *) die "node: add | bump | patch" ;;
+        add|bump|patch|rm) python3 "$MODPACK_PY" "$op" "$name" "$COMFY_HOME/$name/custom_nodes" "$@" ;;
+        *) die "node: add | bump | patch | rm" ;;
     esac
 }
 
@@ -427,6 +429,13 @@ cmd_rollback() {
     running_note "$name"
 }
 
+# Бэкенды аттеншена на живом GPU (docs/rocm-accelerators.md). Скрипт передаём внутрь: в образе его нет.
+cmd_attn_bench() {
+    local c="comfy-${1:-main}"
+    podman container exists "$c" || die "$c не запущен — сначала: bash tools/comfyctl start"
+    podman exec -i "$c" python - < "$ROOT/tests/smoke/attention_bench.py"
+}
+
 case "${1:-}" in
     build)    shift; cmd_build "$@" ;;
     run)      shift; cmd_run "$@" ;;
@@ -441,5 +450,6 @@ case "${1:-}" in
     promote)  shift; cmd_promote "$@" ;;
     rollback) shift; cmd_rollback "$@" ;;
     workflow) [ "${2:-}" = deps ] || die "workflow: deps ФАЙЛ.json [...] [--modpack NAME]"; python3 "$ROOT/tools/workflow-deps.py" "${@:3}" ;;
-    *) sed -n '2,31p' "$0"; exit 1 ;;
+    attn-bench) cmd_attn_bench "${2:-main}" ;;
+    *) sed -n '2,33p' "$0"; exit 1 ;;
 esac

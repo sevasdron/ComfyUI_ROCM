@@ -3,6 +3,10 @@
 Порядок подключения ([ADR-0006](../decisions/0006-modpack-main-starts-empty.md)): воркфлоу → `tools/comfy workflow deps` →
 `node add` недостающих пакетов (+ `node patch`, если нужна правка) → `build main` → `promote` → прогон.
 
+`workflow deps` заодно печатает замены из [node-policy.yaml](../../modpacks/main/node-policy.yaml): что на gfx1151 не работает,
+чем это заменить нодой ядра и где нужна наша нода из пака ROCm Halo. Правило: если функцию можно получить нодой ядра или
+обойти — ставим замену и лишний пакет не тащим ([rocm-accelerators.md](../rocm-accelerators.md)).
+
 Раскладка в `~/ComfyUI/main/user/default/workflows/`: категория автора, внутри — папка автора
 (`Image/ND/`, `Video/ND/`, `Audio/ND/`…), свои воркфлоу — в корне категории.
 Исходники воркфлоу ND (не правленные) — `/run/media/ai/ComfyUI/ComfyUI_Influencer_Build_v4.7/ComfyUI/user/default/workflows/`.
@@ -28,9 +32,11 @@
 
 - Пути моделей снова в виде Windows (`MiniMax\\minimax_h3_video_vae_fp16.safetensors`): перевыбрать в `MiniMax H3 Model Loader`
   (#138 CLIP, #139/#140 VAE, #9121 diffusion) и в `Turbo Lora` (#9348, #9551). Все пять файлов в `/models` есть.
-- `ComfyUI-SolAttn_triton` (нода `SolAttnPatch`): автор пометил репозиторий DEPRECATED — реализация ушла в ядро
-  (`BlockSparseAttention`), тестировалась только на RTX 4090/5090, ядра Triton под int8. На ROCm ожидаемо не поедет:
-  для прогона ставить Bypass (как P6 с Sage Attention) либо заменить на ноду ядра.
+- `SolAttnPatch` заменить нодой ядра `Block Sparse Attention` (method `sol-attn`): на gfx1151 она идёт через HIP-ядра
+  comfy-kitchen и даёт 2.0x на 8k токенов и 4.1x на 32k против SDPA. После замены пакет `ComfyUI-SolAttn_triton`
+  убрать: `bash tools/comfy node rm main ComfyUI-SolAttn_triton`.
+- `MiniMaxH3MemoryEfficientSageAttentionPatch` заменить на `Model Attention Backend` с backend
+  `comfy kitchen attention` (INT8-аттеншен, cos 0.99988 к fp32). Bypass, как раньше, больше не нужен.
 - Из `Mickmumpitz` нужны только `AudioExists` / `ImageExists`; `ultralytics` (YOLO-детектор) исключён из pip — импорт там
   ленивый. В `LayerStyle` нужна одна `ImageScaleByAspectRatio V2`; `opencv-contrib-python` исключён, `guidedFilter`
   у пакета под try/except.
