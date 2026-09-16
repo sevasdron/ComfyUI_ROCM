@@ -6,6 +6,8 @@
 `workflow deps` заодно печатает замены из [node-policy.yaml](../../modpacks/main/node-policy.yaml): что на gfx1151 не работает,
 чем это заменить нодой ядра и где нужна наша нода из пака ROCm Halo. Правило: если функцию можно получить нодой ядра или
 обойти — ставим замену и лишний пакет не тащим ([rocm-accelerators.md](../rocm-accelerators.md)).
+У каждой записи политики есть поле `verified`: `run` — подтверждено настоящим прогоном, `bench` — только синтетикой,
+`docs` — только по документации. Всё, что не `run`, проверяем на первом же прогоне и обновляем.
 
 Раскладка в `~/ComfyUI/main/user/default/workflows/`: категория автора, внутри — папка автора
 (`Image/ND/`, `Video/ND/`, `Audio/ND/`…), свои воркфлоу — в корне категории.
@@ -32,11 +34,13 @@
 
 - Пути моделей снова в виде Windows (`MiniMax\\minimax_h3_video_vae_fp16.safetensors`): перевыбрать в `MiniMax H3 Model Loader`
   (#138 CLIP, #139/#140 VAE, #9121 diffusion) и в `Turbo Lora` (#9348, #9551). Все пять файлов в `/models` есть.
-- `SolAttnPatch` заменить нодой ядра `Block Sparse Attention` (method `sol-attn`): на gfx1151 она идёт через HIP-ядра
-  comfy-kitchen и даёт 2.0x на 8k токенов и 4.1x на 32k против SDPA. После замены пакет `ComfyUI-SolAttn_triton`
-  убрать: `bash tools/comfy node rm main ComfyUI-SolAttn_triton`.
-- `MiniMaxH3MemoryEfficientSageAttentionPatch` заменить на `Model Attention Backend` с backend
-  `comfy kitchen attention` (INT8-аттеншен, cos 0.99988 к fp32). Bypass, как раньше, больше не нужен.
+- `SolAttnPatch` — кандидат на замену нодой ядра `Block Sparse Attention` (method `sol-attn`): на синтетике она идёт
+  через HIP-ядра comfy-kitchen и даёт 2.0x на 8k токенов и 4.1x на 32k против SDPA. Проверить на прогоне (качество при
+  `tau` 1.0–1.5). Пакет `ComfyUI-SolAttn_triton` убирать только после удачного прогона:
+  `bash tools/comfy node rm main ComfyUI-SolAttn_triton`.
+- `MiniMaxH3MemoryEfficientSageAttentionPatch` — кандидат на замену `Model Attention Backend` с backend
+  `comfy kitchen attention` (INT8-аттеншен, на синтетике cos 0.99988 к fp32). Если на прогоне не пойдёт — прежний
+  Bypass остаётся рабочим вариантом.
 - Из `Mickmumpitz` нужны только `AudioExists` / `ImageExists`; `ultralytics` (YOLO-детектор) исключён из pip — импорт там
   ленивый. В `LayerStyle` нужна одна `ImageScaleByAspectRatio V2`; `opencv-contrib-python` исключён, `guidedFilter`
   у пакета под try/except.

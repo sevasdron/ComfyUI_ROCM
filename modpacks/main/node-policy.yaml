@@ -7,7 +7,10 @@
 #   bypass  — заменить нечем, ноду обойти (Bypass); воркфлоу от этого не ломается
 #   ours    — есть наша нода из пака ROCm Halo, ставить её вместо upstream-ноды
 #   caution — работает, но с оговоркой (нужна соседняя нода, ключ запуска и т.п.)
-#   ok      — проверено, работает как есть (записываем, чтобы не проверять повторно)
+#   ok      — работает как есть (записываем, чтобы не проверять повторно)
+#
+# verified: чем подтверждено — run (настоящий прогон воркфлоу) | bench (синтетика tools/comfy attn-bench) |
+#   docs (только документация/код пакета) | no. Пока не run — замена остаётся кандидатом, проверяем на прогоне.
 
 nodes:
 
@@ -18,35 +21,43 @@ nodes:
     why: >
       SageAttention собран под NVIDIA, на ROCm пакета нет (P6). INT8-аттеншен comfy-kitchen идёт через
       HIP-ядра WMMA и на gfx1151 работает: cos 0.99988 к fp32, скорость 0.9x от SDPA, память ниже за счёт
-      int8 Q/K/V. Прежнее решение (Bypass) больше не нужно.
+      int8 Q/K/V. Прежнее решение (Bypass) пока остаётся запасным: заменой на прогоне ещё не проверено.
+    verified: bench
   LTX2MemoryEfficientSageAttentionPatch:
     status: replace
     with: 'Model Attention Backend, backend = "comfy kitchen attention"'
     why: то же, что у MiniMax-версии.
+    verified: no
   WanVideoMemoryEfficientSageAttentionPatch:
     status: replace
     with: 'Model Attention Backend, backend = "comfy kitchen attention"'
     why: то же, что у MiniMax-версии.
+    verified: no
   PathchSageAttentionKJ:
     status: replace
     with: 'Model Attention Backend, backend = "comfy kitchen attention"'
     why: то же; нода KJNodes требует пакет sageattention, которого под ROCm нет.
+    verified: docs
   SolAttnPatch:
     status: replace
     with: 'Block Sparse Attention (ядро), method = sol-attn'
     why: >
       Репозиторий ComfyUI-SolAttn_triton помечен автором DEPRECATED (реализация уехала в ядро), ядра писались
       под RTX 4090/5090. В ядре тот же sol-attn идёт через HIP-бэкенд comfy-kitchen и на gfx1151 даёт
-      2.0x на 8k токенов и 4.1x на 32k против SDPA.
+      2.0x на 8k токенов и 4.1x на 32k против SDPA (синтетика; качество на реальных активациях не проверено).
+    verified: bench
   SolAttnBlockProbe:
     status: bypass
     why: диагностика к SolAttnPatch; с нодой ядра не нужна.
+    verified: docs
   BlockSparseAttention:
     status: ok
-    why: sol-attn через HIP работает; выигрыш растёт с длиной последовательности (docs/rocm-accelerators.md).
+    why: sol-attn через HIP запускается; выигрыш на синтетике растёт с длиной (docs/rocm-accelerators.md).
+    verified: bench
   ModelAttentionBackend:
     status: ok
     why: '"comfy kitchen attention" доступен — int8_attention_is_available() = True на gfx1151.'
+    verified: bench
 
   # --- наши ноды (пак ROCm Halo) ----------------------------------------------------------------
   Trellis2UpsampleStage:
@@ -55,20 +66,25 @@ nodes:
     why: >
       upstream жёстко считает исходный латент формы 512 (P14); при structure resolution=64 меш выходит за
       куб ±0.5 и RemeshMesh молча отдаёт пустоту.
+    verified: run
   BakeTextureFromVoxel:
     status: caution
     with: RH Cast to float32 перед нодой
     why: с --bf16-vae цвета вокселей приходят в bf16, а дальше по цепочке .numpy() (P12/P13).
+    verified: run
   PaintMesh:
     status: caution
     with: RH Cast to float32 перед нодой
     why: то же, что у BakeTextureFromVoxel.
+    verified: run
   VaeDecodeTextureTrellis:
     status: caution
     with: RH Cast to float32 после ноды
     why: текстурный VAE отдаёт bf16 при --bf16-vae (P13).
+    verified: run
 
   # --- NVIDIA-only ------------------------------------------------------------------------------
   NVIDIA_RTXVideoEnhance:
     status: bypass
     why: пакет comfyui_nvidia_rtx_nodes работает только на RTX (NVIDIA Maxine); замены нет.
+    verified: docs

@@ -141,6 +141,9 @@ def widget_mismatches(wf, schema_full):
 
 
 MARK = {"replace": "заменить", "bypass": "обойти (Bypass)", "ours": "наша нода", "caution": "внимание", "ok": "проверено"}
+# node-policy.yaml, поле verified: чем подтверждена запись
+VERIFIED = {"run": "подтверждено прогоном", "bench": "только синтетика, прогоном не проверено",
+            "docs": "только по документации", "no": "не проверено"}
 
 
 def report_policy(used, missing_types, policy):
@@ -154,6 +157,7 @@ def report_policy(used, missing_types, policy):
         head = f"      {MARK.get(st, st)}: {t}"
         if rule.get("with"):
             head += f" → {rule['with']}"
+        head += f"   [{VERIFIED.get(str(rule.get('verified', 'no')), 'не проверено')}]"
         if t in missing_types and st in ("replace", "bypass"):
             head += "   [ноды нет в модпаке — пакет можно не ставить]"
         print(head)
