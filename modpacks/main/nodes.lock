@@ -6,7 +6,7 @@
 nodes:
   - name: comfyui-rocm-halo
     repo: local
-    ref: 1e7b76482212446fc9fbed8a0369b277ee538407
+    ref: 420462d07874877b95c3aabdd58b91f793d619ce
     patches: []
   - name: ComfyUI-basic_data_handling
     repo: https://github.com/StableLlama/ComfyUI-basic_data_handling
