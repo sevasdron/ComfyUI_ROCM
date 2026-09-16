@@ -20,7 +20,7 @@
 | `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v3.0_WIP_1` | ND, Influencer Build v4.7 | + AudioBatch, Mickmumpitz, Spectrum-MiniMax-H3, LayerStyle, Fantastic-MiniMaxH3-PromptBuilder, SolAttn_triton, Minimax_h3_latent_Upscaler (P4) | 16.09: ноды добавлены, файл воркфлоу — с внешнего диска, когда примонтирован |
 | `ND_YuE2_T2M_…` | ND | — | очередь |
 | `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v2.0` | ND | + `ComfyUI-MiniMax-H3-LongMedia` | 16.09: готовый воркфлоу автора на LongMedia, всё остальное уже есть; ждёт перезапуска и прогона |
-| `Video/ND/ND_MiniMax_H3_Ultimate_VVJ_v2.1` | ND | + LongMedia, `Sigmas Split` заменить на `SplitSigmas` ядра | 16.09: скопирован, требует одной замены ноды |
+| `Video/ND/ND_MiniMax_H3_Ultimate_VVJ_v2.1_RH` | ND, правленый | + LongMedia | 16.09: Sage-патч заменён нодой ядра, `Sigmas Split` → `SplitSigmas`; недостающих нод нет, ждёт прогона (оригинал рядом, удалить после тестов) |
 
 Заметки:
 - Krea2 v1.4 из Influencer Build цел: LoRA-нода `#170 Krea 2 Loras` подключена. Обрыв связей из CHANGES.md §10 был
@@ -82,3 +82,19 @@ compute capability `(12, 0)` — это NVIDIA Blackwell, у нас услови
 циклы Easy-Use (`For Loop Start/End`, `While Loop Start/End`), `TensorLoopOpen/Close` и `ImageBatchExtendWithOverlap`
 из KJNodes, контекстные окна ядра (`Context Windows (Manual)`, `Wan Context Windows`, `LTXV Context Windows`)
 и `Add Guide for MiniMax H3` для якорей персонажей.
+
+## VVJ v2.1: что поправлено в копии `_RH`
+
+- В подграфе `MiniMax H3 Model Loader` Sage-патч `#9433` стоял жёстко между загрузчиком и списком моделей,
+  без переключателя. Заменён на ноду ядра `Model Attention Backend` (`#9434`) с backend `comfy kitchen attention`.
+- `Sigmas Split` из RES4LYF `#9638` заменена на `SplitSigmas` ядра: то же расписание на входе, тот же INT на `step`,
+  выход `low_sigmas` уходит в `MiniMaxH3LatentLabLongMediaSampler`. Пакет RES4LYF не нужен.
+- Режимы памяти в подграфе `VRAM Mode` (`#9648`): `auto`, `normal`, `low_vram`, `ultra_low_vram` — это `memory_mode`
+  сэмплеров LongMedia, чистая политика резидентности весов, от NVIDIA не зависит и работает целиком. На нашей машине
+  `auto` смотрит на отношение размера модели к «видеопамяти», а ComfyUI видит 126 ГиБ единой памяти, поэтому выберет
+  `normal`; `low_vram` и `ultra_low_vram` проверять отдельно (в прогоне 16.09 пик ОЗУ был 91 ГиБ из 96).
+- Выпадающий список `sage_attention` у `DiffusionModelLoaderKJ` (вход `#9425`) пробовать нельзя ни в одном варианте,
+  включая `..._triton`: все они требуют пакет `sageattention`, которого в образе нет (`ModuleNotFoundError`).
+  Оставлять `disabled`.
+- Авторская висящая связь в подграфе `ND Advanced Prompt` (link 15206 на несуществующую ноду 5750) есть и в оригинале,
+  правкой не тронута.

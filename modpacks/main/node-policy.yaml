@@ -103,6 +103,16 @@ nodes:
       в ядре есть SplitSigmas (и SplitSigmasDenoise). Проверить соответствие параметров при подстановке.
     verified: docs
 
+  DiffusionModelLoaderKJ:
+    status: caution
+    with: 'sage_attention = disabled; ускорение брать нодой Model Attention Backend'
+    why: >
+      выпадающий список sage_attention у загрузчика KJNodes (auto, sageattn_qk_int8_pv_fp16_cuda,
+      ..._fp16_triton, ..._fp8_cuda, sageattn3 и прочие) целиком опирается на пакет sageattention,
+      которого под ROCm нет — в образе ModuleNotFoundError. Вариант с triton не спасает: triton там
+      лишь бэкенд внутри самого пакета.
+    verified: run
+
   # --- NVIDIA-only ------------------------------------------------------------------------------
   NVIDIA_RTXVideoEnhance:
     status: bypass
