@@ -113,6 +113,14 @@ nodes:
       лишь бэкенд внутри самого пакета.
     verified: run
 
+  MiniMaxH3LatentLabLongMediaSetup:
+    status: ok
+    why: >
+      timeline_mode=segmented подтверждён прогонами 16–17.09: ролики выходят заданной длины (15 с),
+      склеек между сегментами не видно, цвет ровный, вспышек нет. Режим single делает один проход и длины
+      не добавляет. h3_mode задаём нодой RH H3 Mode по подключённым входам.
+    verified: run
+
   # --- NVIDIA-only ------------------------------------------------------------------------------
   NVIDIA_RTXVideoEnhance:
     status: bypass
