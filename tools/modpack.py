@@ -71,6 +71,7 @@ def cmd_env(a):
     print(f"MP_CORE={shlex.quote(str(cfg.get('core', '')))}")
     print(f"MP_PORT={int(cfg.get('port', 8100))}")
     print(f"MP_MANAGER={1 if cfg.get('manager') else 0}")
+    print(f"MP_MODELS={'rw' if str(cfg.get('models', 'ro')).lower() == 'rw' else 'ro'}")   # /models: ro (ADR-0003) | rw
     print(f"MP_ARGS={shlex.quote(' '.join(str(x) for x in args))}")
     print(f"MP_NODES={len(nodes)}")
 

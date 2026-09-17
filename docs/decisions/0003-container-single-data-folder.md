@@ -43,3 +43,11 @@ ROCm в обоих случаях приезжает pip-колёсами.
 - Для монтирований из `/home` под SELinux нужна метка (`:z`) или `--security-opt label=disable`;
   выбрать при написании `tools/comfy run`.
 - Хранилище образов остаётся на btrfs (`~/.local/share/containers`): на NTFS слои podman не хранятся.
+
+## Уточнение 17.09.2026: модели на запись для `main`
+
+Lora Manager хранит превью и `.metadata.json` рядом с файлами моделей, а не в своей папке, и с `/models:ro`
+эта его половина не работает. По решению пользователя для модпака `main` монтирование переведено на запись:
+ключ `models: rw` в `modpacks/main/modpack.yaml` (умолчание для новых модпаков — `ro`, `tools/comfy run`
+читает ключ через `tools/modpack.py env`). Остальные его данные — кэши, снимки, рецепты, бэкапы — остаются
+в `/data` (папка модпака): рецепты через `recipes_path`, кэши в `/data/.config/ComfyUI-LoRA-Manager/`.

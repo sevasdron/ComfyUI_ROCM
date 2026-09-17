@@ -114,7 +114,7 @@ cmd_build() {
 parse_run_opts() {
     NAME=${1:-}; shift || true
     [ -n "$NAME" ] || die "нужно имя (core или модпак)"
-    IMG=""; PORT=""; MANAGER=""; EXTRA=(); CHANNEL=stable
+    IMG=""; PORT=""; MANAGER=""; EXTRA=(); CHANNEL=stable; MODELS_MODE=ro
     while [ $# -gt 0 ]; do
         case "$1" in
             --image) IMG=$2; shift 2 ;;
@@ -136,6 +136,7 @@ parse_run_opts() {
         [ -n "$IMG" ] || IMG="$img:$CHANNEL"
         [ -n "$PORT" ] || PORT=$MP_PORT
         [ -n "$MANAGER" ] || MANAGER=$MP_MANAGER
+        MODELS_MODE=$MP_MODELS          # modpack.yaml: models: ro|rw (rw — для нод, пишущих превью/метаданные рядом с моделями)
         [ ${#EXTRA[@]} -gt 0 ] || read -r -a EXTRA <<<"$MP_ARGS"
         if [ "$CHANNEL" = candidate ]; then
             # Кандидат: те же custom_nodes/input/output, но своя копия user/ (миграция comfyui.db).
@@ -185,13 +186,13 @@ cmd_run() {
     podman run -d --name "$CONTAINER" $(podman_common) --stop-signal SIGINT \
         -p "127.0.0.1:$PORT:$PORT" \
         -v "$DATA:/data" \
-        -v "$MODELS_DIR:/models:ro" \
+        -v "$MODELS_DIR:/models:$MODELS_MODE" \
         -v "$HF_CACHE:/cache/hf" \
         -e HOME=/data \
         -e HF_HOME=/cache/hf \
         "$IMG" python /opt/ComfyUI/main.py --listen 0.0.0.0 --port "$PORT" \
             --base-directory /data --models-directory /models "${args[@]}" >/dev/null </dev/null
-    echo "$CONTAINER: $IMG → http://127.0.0.1:$PORT  (данные: $DATA${USER_DIR:+, user: user-candidate})"
+    echo "$CONTAINER: $IMG → http://127.0.0.1:$PORT  (данные: $DATA${USER_DIR:+, user: user-candidate}, модели: $MODELS_MODE)"
 }
 
 # stop NAME [--channel candidate]
