@@ -19,7 +19,8 @@
 | `Image/ND/ND_Krea2_Ultimate_TI2I_v1.4` | ND, Influencer Build v4.7 | basic_data_handling, Easy-Use, Impact-Pack, Inpaint-CropAndStitch, KJNodes, krea2edit, LLM-text-processor (P3), mxToolkit, Comfyroll, rgthree | 15.09: образ `v0.35.1-66685a5` в stable, все 58 типов нод есть; прогон — ждёт выбора CLIP |
 | `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v3.0_WIP_1` | ND, Influencer Build v4.7 | + AudioBatch, Mickmumpitz, Spectrum-MiniMax-H3, LayerStyle, Fantastic-MiniMaxH3-PromptBuilder, SolAttn_triton, Minimax_h3_latent_Upscaler (P4) | 16.09: ноды добавлены, файл воркфлоу — с внешнего диска, когда примонтирован |
 | `ND_YuE2_T2M_…` | ND | — | очередь |
-| `Audio/ND/ND_ACE_Step_1.5_XL_Turbo_T2M_v1_RH` | ND, правленый | пакетов не нужно (ядро + Easy-Use, mxToolkit, KJNodes, basic_data_handling) | 17.09: пути моделей и sage_attention поправлены, прогона не было |
+| `Audio/ND/ND_ACE_Step_1.5_XL_Turbo_T2M_v1_RH` | ND, правленый | пакетов не нужно (ядро + Easy-Use, mxToolkit, KJNodes, basic_data_handling) | 17.09: **прогон прошёл**, MP3 на выходе; LM аудиокодов 27 с, диффузия 8 шагов 5 с |
+| `Audio/ND/ND_MiniMax_Music_3_RH` | шаблон ComfyUI из старого toolbox | пакетов не нужно (только ядро) | 17.09: пути моделей поправлены, задание собирается; прогона не было |
 | `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v2.0` | ND | + `ComfyUI-MiniMax-H3-LongMedia` | 16.09: готовый воркфлоу автора на LongMedia, всё остальное уже есть; ждёт перезапуска и прогона |
 | `Video/ND/ND_MiniMax_H3_Ultimate_VVJ_v2.1_RH` | ND, правленый | + LongMedia | 16.09: Sage-патч заменён нодой ядра, `Sigmas Split` → `SplitSigmas`; недостающих нод нет, ждёт прогона (оригинал рядом, удалить после тестов) |
 
@@ -268,3 +269,40 @@ carve-out VRAM снова не используется. GPU занят в ср�
   тегов через запятую в поле `tags` и текст с разметкой `[Verse]`/`[Chorus]`/`[Bridge]`/`[Outro]` в `lyrics`,
   а `bpm`, `keyscale`, `timesignature` и `language` задаются отдельными полями ноды. Нужен отдельный файл
   системного промпта под этот формат; ноду брать ту же (`LLMTextProcessor` в подграфе `ND Advanced Prompt`).
+
+### Первый прогон ACE Step (17.09)
+
+Прошёл без правок графа: текстовый энкодер 9.1 ГБ и модель 9.5 ГБ грузятся целиком, LM аудиокодов
+600 шагов за 27 с (22 it/s), диффузия 8 шагов за 5 с, декод — секунды. Итог `output/audio/ACE_Step1.5_xl_turbo_00001.mp3`.
+На таких временах ускорители аттеншена не нужны: узкое место — LM аудиокодов, а не диффузия.
+
+В логе одна строка `[ERROR] [LoRA-Manager] Error collecting metadata (pre-execution): tuple index out of range` —
+это хук Lora Manager, который собирает метаданные для сохранённых картинок; на аудио-графе ему нечего собирать,
+и он падает внутри своего `try/except`. На прогон не влияет. Если начнёт мешать — гасится патчем уровня лога
+в `py/metadata_collector/metadata_hook.py`.
+
+### Системный промпт под ACE Step
+
+Файл `modpacks/main/prompts/ACE Step 1.5 Music.txt` (копия установлена в `/mnt/data/AI_Models/ComfyUI/LLM/prompts/`,
+где `LLMTextProcessor` ищет пресеты). Источники требований: код кодировщика ядра `comfy/text_encoders/ace15.py`
+(caption и lyrics — раздельные поля; bpm / keyscale / timesignature / duration уходят в отдельный блок `# Metas`),
+схема ноды `TextEncodeAceStepAudio1.5` (51 язык, размер 2/3/4/6, тональности `<Root> major|minor`) и официальное
+руководство ACE-Step 1.5 (`docs/en/Tutorial.md` в репозитории модели): 5–12 тегов, один модификатор на структурный
+тег через дефис, 6–10 слогов в строке, «не пишите BPM и тональность в caption».
+
+Формат ответа — три секции `### TAGS`, `### LYRICS`, `### META`, чтобы их можно было развести по полям ноды.
+**Ещё не подключён**: нужно вставить подграф `ND Advanced Prompt` (как в MiniMax-воркфлоу) и разрезать ответ
+на поля нодами ядра `RegexExtract`. Это следующий шаг по аудио.
+
+### MiniMax Music 3: какой из двух файлов
+
+В старом toolbox два файла: `Minimax_music_3.json` (07.09 13:38) и `Audio-MinimaxMusic3.json` (07.09 21:58).
+Оба — штатный шаблон ComfyUI «Text to Music (MiniMax Music 3)»: 15 нод, один подграф, одинаковые модели,
+семплер и параметры. Единственная разница: в позднем файле у ноды кодировщика лишний ключ
+`speak_and_recognation` — след браузерного расширения диктовки, не функция. Взят ранний, чистый.
+
+Копия `Audio/ND/ND_MiniMax_Music_3_RH`: пути моделей переведены на наши подпапки
+(`MiniMaxMusic/minimax_music3_dit_fp16`, `…text_encoder_pruned_int8_convrot`, `…dav`), задание собирается.
+Усилителя промпта в шаблоне нет; caption там — структурированный текст вида
+`Global Metadata: Lo-fi hip-hop… Vocal Details… Arrangement…`. Это ровно формат, который выдаёт `MM Music.txt`:
+он написан под эту модель, и подключать его сюда — тем же подграфом `ND Advanced Prompt`.
