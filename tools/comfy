@@ -386,7 +386,7 @@ cmd_promote() {
     local snap; snap=$(schema_snap "$img:candidate")
     if [ -f "$snap" ]; then
         local img_time snap_time
-        img_time=$(date -d "$(podman inspect -f '{{.Created}}' "$img:candidate")" +%s)
+        img_time=$(podman image inspect --format '{{.Created.Unix}}' "$img:candidate")   # GNU date не парсит формат podman
         snap_time=$(stat -c %Y "$snap")
         if [ "$snap_time" -ge "$img_time" ]; then
             copy_snap "$img:candidate" "$img:stable"

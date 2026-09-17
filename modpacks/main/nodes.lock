@@ -80,3 +80,7 @@ nodes:
     repo: https://github.com/vizart-vj/ComfyUI-MiniMax-H3-LongMedia
     ref: 3c9681345e563ea6ec54c1b2e4b60d292a84701c
     patches: []
+  - name: ComfyUI-Lora-Manager
+    repo: https://github.com/willmiao/ComfyUI-Lora-Manager
+    ref: bf497d514457cd7ca2eaa469d50b6f49510aaac2
+    patches: []
