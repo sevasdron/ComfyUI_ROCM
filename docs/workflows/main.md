@@ -239,7 +239,7 @@ b5af3e6/16d0c0f, в пак взят HEAD 8042212: между ними тольк
 Остальное — ядро и уже стоящие пакеты (Easy-Use, basic_data_handling, LLM-text-processor). Генератор текста —
 подграф `Lyrics Generator` на `LLMTextProcessor`, тот же, что в VVJ; виджеты совпадают с нашей схемой один в один.
 
-Правки в копии `_RH`: только модель LLM на внешней ноде `#27` — `Gemma4-26B-A4B…` (у нас нет) →
+Правки в копии `_RH`: проигрыватель `PreviewAudio` `#76` (Play Track) под Save Track, от выхода audio ноды `#12` (17.09); модель LLM на внешней ноде `#27` — `Gemma4-26B-A4B…` (у нас нет) →
 `Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced-Q4_K_M.gguf` (есть в `LLM/`). Автор рекомендует для генератора
 reasoning=on; на `#27` это пока список on/off, тумблер как в VVJ — после прогона.
 
