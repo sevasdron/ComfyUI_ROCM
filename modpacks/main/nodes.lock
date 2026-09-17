@@ -83,4 +83,4 @@ nodes:
   - name: ComfyUI-Lora-Manager
     repo: https://github.com/willmiao/ComfyUI-Lora-Manager
     ref: bf497d514457cd7ca2eaa469d50b6f49510aaac2
-    patches: []
+    patches: [lora-manager-audio-latent.patch]

@@ -1,0 +1,15 @@
+diff --git a/py/metadata_collector/node_extractors.py b/py/metadata_collector/node_extractors.py
+index 2eeb31bd..269cc25b 100644
+--- a/py/metadata_collector/node_extractors.py
++++ b/py/metadata_collector/node_extractors.py
+@@ -676,7 +676,9 @@ class BaseSamplerExtractor(NodeMetadataExtractor):
+             if isinstance(latent, dict) and "samples" in latent:
+                 # Extract dimensions from latent tensor
+                 samples = latent["samples"]
+-                if hasattr(samples, "shape") and len(samples.shape) >= 3:
++                # Audio latents are 3-D [batch, channels, length]: no height/width to report.
++                # Only image/video latents [batch, channels, (frames,) height, width] have shape[3].
++                if hasattr(samples, "shape") and len(samples.shape) >= 4:
+                     # Correct shape interpretation: [batch_size, channels, height/8, width/8]
+                     # Multiply by 8 to get actual pixel dimensions
+                     height = int(samples.shape[2] * 8)
