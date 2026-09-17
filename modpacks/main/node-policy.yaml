@@ -129,8 +129,8 @@ nodes:
       «requires an NVIDIA GPU with BF16». Условие общее: у ROCm-сборки torch устройство тоже называется cuda,
       BF16 на gfx1151 есть — проверка проходит. Нужная пакету операция ядра `comfy_kitchen.rms_rope_split_half`
       в v0.35.1 есть (проверено в контейнере). Модели (7.8 ГБ, YuE2-3B + YuE2-Vae) нода качает сама при
-      download_missing=true в /models/yue2 — нужен models: rw. Прогона ещё не было.
-    verified: docs
+      download_missing=true в /models/yue2 — нужен models: rw. Прогон 17.09 прошёл: FLAC на выходе, ошибок нет.
+    verified: run
 
   # --- NVIDIA-only ------------------------------------------------------------------------------
   NVIDIA_RTXVideoEnhance:

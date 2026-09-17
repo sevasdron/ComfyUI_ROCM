@@ -18,7 +18,7 @@
 | `3d_pixal3d_trellis2_image_to_model` | шаблон ComfyUI | ядро + ROCm Halo (`#94` RH Trellis2 Upsample Stage, `#324` RH Cast to float32) | работает (res 32/64) |
 | `Image/ND/ND_Krea2_Ultimate_TI2I_v1.4` | ND, Influencer Build v4.7 | basic_data_handling, Easy-Use, Impact-Pack, Inpaint-CropAndStitch, KJNodes, krea2edit, LLM-text-processor (P3), mxToolkit, Comfyroll, rgthree | 15.09: образ `v0.35.1-66685a5` в stable, все 58 типов нод есть; прогон — ждёт выбора CLIP |
 | `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v3.0_WIP_1` | ND, Influencer Build v4.7 | + AudioBatch, Mickmumpitz, Spectrum-MiniMax-H3, LayerStyle, Fantastic-MiniMaxH3-PromptBuilder, SolAttn_triton, Minimax_h3_latent_Upscaler (P4) | 16.09: ноды добавлены, файл воркфлоу — с внешнего диска, когда примонтирован |
-| `Audio/ND/ND_YuE2_T2M_v1.2_RH` | ND, файл `ND_YuE2_T2M_v1.2_no_mtp` (17.09), правленый | + `ComfyUI-FL-YuE2` (8042212; `soundfile` в pip.extra) | 17.09: пакет в паке, образ-кандидат собран, ноды в схеме; модели (7.8 ГБ) не скачаны, прогона не было |
+| `Audio/ND/ND_YuE2_T2M_v1.2_RH` | ND, файл `ND_YuE2_T2M_v1.2_no_mtp` (17.09), правленый | + `ComfyUI-FL-YuE2` (8042212; `soundfile` в pip.extra) | 17.09: **прогон прошёл** на ROCm, `output/Songs/YuE2_00001.flac`; модели докачаны нодой (13 мин), сама генерация ≈12 мин при авторских настройках |
 | `Audio/ND/ND_ACE_Step_1.5_XL_Turbo_T2M_v1_RH` | ND, правленый | пакетов не нужно (ядро + Easy-Use, mxToolkit, KJNodes, basic_data_handling) | 17.09: **прогон прошёл**, MP3 на выходе; LM аудиокодов 27 с, диффузия 8 шагов 5 с |
 | `Audio/ND/ND_MiniMax_Music_3_RH` | шаблон ComfyUI из старого toolbox | пакетов не нужно (только ядро) | 17.09: пути моделей поправлены, задание собирается; прогона не было |
 | `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v2.0` | ND | + `ComfyUI-MiniMax-H3-LongMedia` | 16.09: готовый воркфлоу автора на LongMedia, всё остальное уже есть; ждёт перезапуска и прогона |
@@ -242,6 +242,13 @@ b5af3e6/16d0c0f, в пак взят HEAD 8042212: между ними тольк
 Правки в копии `_RH`: только модель LLM на внешней ноде `#27` — `Gemma4-26B-A4B…` (у нас нет) →
 `Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced-Q4_K_M.gguf` (есть в `LLM/`). Автор рекомендует для генератора
 reasoning=on; на `#27` это пока список on/off, тумблер как в VVJ — после прогона.
+
+### Первый прогон (17.09)
+
+Задание с автозагрузкой моделей: 13 минут ушло на скачивание (7.8 ГБ, sha256 сверен, штампы `.verified.json`
+в папках моделей), затем ≈12 минут генерации — итого `Prompt executed in 00:25:17`, FLAC 30 МБ. Ошибок на ROCm нет:
+проверка GPU в пакете прошла, kitchen-операция отработала. Настройки прогона — авторские из файла (quality, max_duration,
+стиль, текст), замера по шагам не делали; следующий прогон уже без загрузки покажет чистое время.
 
 ### Что нужно для первого прогона
 
