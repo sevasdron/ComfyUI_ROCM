@@ -241,5 +241,16 @@ carve-out VRAM снова не используется. GPU занят в ср�
 `ACEmusic/qwen_0.6b_ace15.safetensors`, `ACEmusic/qwen_4b_ace15.safetensors`.
 
 Параметры генерации: длительность ползунком в минутах (сейчас 2), KSampler 8 шагов, cfg 1 (turbo-модель),
-выход в MP3. Кандидат на ускорение после первого прогона — нода ядра `Model Attention Backend`
-с backend `comfy kitchen attention` перед `ModelSamplingAuraFlow`, как на MiniMax H3.
+выход в MP3.
+
+### Чем можно ускорить (после базового прогона, по одному)
+
+| Что | Как подключить | Ожидание | Риск |
+|---|---|---|---|
+| `Model Attention Backend` = `comfy kitchen attention` | между загрузчиком и `ModelSamplingAuraFlow` | на MiniMax H3 дал 5.25x | INT8 в аудио — слушать артефакты |
+| `Block Sparse Attention`, method `sol-attn` | там же | растёт с длиной трека: на коротких почти ничего, на 3–5 минутах должно быть заметно | приближение, качество проверять на слух |
+| `TorchCompileModel` / `TorchCompileModelAdvanced` (KJNodes) | перед сэмплером | компиляция через inductor/triton, triton у нас рабочий | первый прогон дольше на компиляцию, на ROCm бывают отказы |
+| `EasyCache` / `LazyCache` (ядро) | перед сэмплером | пропуск шагов по кэшу признаков | **не для turbo**: при 8 шагах экономить нечего, качество просядет |
+
+Порядок разумный такой: базовый прогон → INT8-аттеншен → sol-attn на длинном треке → torch.compile, если
+гоняем одну и ту же конфигурацию много раз. Кэши оставить для базовой модели с большим числом шагов.
