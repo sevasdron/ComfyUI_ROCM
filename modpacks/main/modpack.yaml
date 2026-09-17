@@ -24,6 +24,9 @@ args:
   - --disable-mmap
   - --gpu-only
   - --bf16-vae
+  - --enable-assets   # база ассетов ядра (user/comfyui.db): индекс файлов models/input/output, /api/assets, регистрация
+                      # загрузок. Вкладку «Медиафайлы → Сгенерированные» НЕ спасает: она читает /api/jobs — историю очереди,
+                      # которая живёт в памяти процесса и пустеет при любом перезапуске (docs/startup-log.md)
 
 # pip-зависимости нод при сборке образа.
 pip:
@@ -31,9 +34,12 @@ pip:
     - pedalboard      # P2: колесо 0.9.25 даёт SIGILL на этом CPU, роняет весь ComfyUI
     - sam2            # comfyui-impact-pack: git+https сборка SAM2 (CUDA-расширение); для ImpactStringSelector не нужна
     - ultralytics     # ComfyUI-Mickmumpitz-Nodes: только YOLO-детектор (импорт ленивый, с понятной ошибкой); нам нужны AudioExists/ImageExists
-    - opencv-python   # поверх opencv-python-headless из ядра: два cv2 в одном venv
-    - opencv-contrib-python  # то же; ComfyUI_LayerStyle берёт guidedFilter в try/except и живёт без contrib
+    - opencv-python   # рядом с headless-сборкой: два cv2 в одном venv
+    - opencv-contrib-python  # то же: два cv2 в одном venv
+    - opencv-python-headless # его просят Easy-Use, Impact-Pack, KJNodes; вместо него ставим contrib-headless (ниже) —
+                             # тот же модуль cv2 плюс cv2.ximgproc (guidedFilter для ультра-нод масок LayerStyle)
   extra:              # пакеты, которых нет в requirements нод, но они нужны (например, llama-cpp)
+    - opencv-contrib-python-headless  # один cv2 на всех: обычный + contrib (ximgproc), ядро OpenCV не содержит
     - soundfile       # ComfyUI-FL-YuE2 импортирует его при загрузке (обучающие ноды), в requirements пакета нет; ядро живёт на torchaudio/av
 
 # Системные пакеты Fedora для нод (ставятся dnf при сборке образа модпака).
