@@ -291,10 +291,21 @@ carve-out VRAM снова не используется. GPU занят в ср�
 модель (Qwen), `Model Attention Backend` патчит только диффузионную. Для ACE Step turbo ускоритель оставлен
 как переключатель, но выигрыша от него нет.
 
-В логе одна строка `[ERROR] [LoRA-Manager] Error collecting metadata (pre-execution): tuple index out of range` —
-это хук Lora Manager, который собирает метаданные для сохранённых картинок; на аудио-графе ему нечего собирать,
-и он падает внутри своего `try/except`. На прогон не влияет. Если начнёт мешать — гасится патчем уровня лога
-в `py/metadata_collector/metadata_hook.py`.
+Строка `[ERROR] [LoRA-Manager] Error collecting metadata (pre-execution): tuple index out of range` в логе —
+сборщик метаданных Lora Manager читал у сэмплера `samples.shape[3]`, проверив лишь `len(shape) >= 3`; у аудио-латента
+три измерения. Починено патчем модпака (P15 в [реестре](../patches-registry.md)), в силу после перезапуска.
+
+Вторая ошибка Lora Manager, уже при старте сервера: `Read-only file system: '/models/loras/recipes'` — он хочет
+завести папку рецептов рядом с LoRA, а `/models` у нас смонтирован только для чтения ([ADR-0003](../decisions/0003-container-single-data-folder.md)).
+Решено настройкой, без патча: `recipes_path = /data/lora-manager/recipes` в его файле настроек
+`~/ComfyUI/main/.config/ComfyUI-LoRA-Manager/settings.json` — причём ключ читается из секции активной библиотеки
+(`libraries.comfyui.recipes_path`), верхнеуровневый ключ нода затирает. `settings.json` в каталоге ноды — только для
+«portable»-режима и здесь не действует.
+
+Открытый вопрос по Lora Manager: превью и `.metadata.json` он пишет **рядом с файлами моделей**, то есть в `/models`.
+С read-only монтированием эта часть работать не будет (старые метаданные с toolbox читаются, новые не появятся).
+Варианты: смонтировать `/models` на запись только для контейнера `main`, либо смириться, что Lora Manager у нас —
+каталог и загрузчики без обогащения метаданными. Решение за пользователем.
 
 ### Системный промпт под ACE Step
 
