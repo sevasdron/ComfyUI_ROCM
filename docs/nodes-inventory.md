@@ -19,7 +19,7 @@ bash tools/comfy build main && bash tools/comfyctl restart               # за�
 | `comfyui-custom-scripts` | https://github.com/pythongosssss/ComfyUI-Custom-Scripts | 1.2.5 | без git |
 | `comfyui-easy-use` | https://github.com/yolain/ComfyUI-Easy-Use | 1.3.6 | без git |
 | `ComfyUI-Flux2Klein-Enhancer` | https://github.com/capitan01R/ComfyUI-Flux2Klein-Enhancer | 3.4.4 | без git |
-| `comfyui-fl-yue2` | https://github.com/filliptm/ComfyUI-FL-YuE2 | b5af3e6 |  |
+| `comfyui-fl-yue2` | https://github.com/filliptm/ComfyUI-FL-YuE2 | b5af3e6 | в `main` с 17.09 на 8042212 (воркфлоу YuE2); импортирует `soundfile` при загрузке — добавлен в `pip.extra` |
 | `comfyui-googletrans` | https://github.com/sweetndata/ComfyUI-googletrans | 0.1.1 | без git |
 | `ComfyUI-H3-Motion-Context-MultiRef` | https://github.com/seitanism/ComfyUI-H3-Motion-Context-MultiRef | 361624f |  |
 | `ComfyUI-H3-VisionPromptor` | https://github.com/benjiyaya/ComfyUI-H3-VisionPromptor | 24a3671 |  |

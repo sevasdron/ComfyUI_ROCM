@@ -121,6 +121,17 @@ nodes:
       не добавляет. h3_mode задаём нодой RH H3 Mode по подключённым входам.
     verified: run
 
+  # --- аудио ------------------------------------------------------------------------------------
+  FL_YuE2_ModelLoader:
+    status: caution
+    why: >
+      В runtime.py пакета стоит проверка `device.type != "cuda" or not torch.cuda.is_bf16_supported()` с текстом
+      «requires an NVIDIA GPU with BF16». Условие общее: у ROCm-сборки torch устройство тоже называется cuda,
+      BF16 на gfx1151 есть — проверка проходит. Нужная пакету операция ядра `comfy_kitchen.rms_rope_split_half`
+      в v0.35.1 есть (проверено в контейнере). Модели (7.8 ГБ, YuE2-3B + YuE2-Vae) нода качает сама при
+      download_missing=true в /models/yue2 — нужен models: rw. Прогона ещё не было.
+    verified: docs
+
   # --- NVIDIA-only ------------------------------------------------------------------------------
   NVIDIA_RTXVideoEnhance:
     status: bypass

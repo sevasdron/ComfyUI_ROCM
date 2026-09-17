@@ -18,7 +18,7 @@
 | `3d_pixal3d_trellis2_image_to_model` | шаблон ComfyUI | ядро + ROCm Halo (`#94` RH Trellis2 Upsample Stage, `#324` RH Cast to float32) | работает (res 32/64) |
 | `Image/ND/ND_Krea2_Ultimate_TI2I_v1.4` | ND, Influencer Build v4.7 | basic_data_handling, Easy-Use, Impact-Pack, Inpaint-CropAndStitch, KJNodes, krea2edit, LLM-text-processor (P3), mxToolkit, Comfyroll, rgthree | 15.09: образ `v0.35.1-66685a5` в stable, все 58 типов нод есть; прогон — ждёт выбора CLIP |
 | `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v3.0_WIP_1` | ND, Influencer Build v4.7 | + AudioBatch, Mickmumpitz, Spectrum-MiniMax-H3, LayerStyle, Fantastic-MiniMaxH3-PromptBuilder, SolAttn_triton, Minimax_h3_latent_Upscaler (P4) | 16.09: ноды добавлены, файл воркфлоу — с внешнего диска, когда примонтирован |
-| `ND_YuE2_T2M_…` | ND | — | очередь |
+| `Audio/ND/ND_YuE2_T2M_v1.2_RH` | ND, файл `ND_YuE2_T2M_v1.2_no_mtp` (17.09), правленый | + `ComfyUI-FL-YuE2` (8042212; `soundfile` в pip.extra) | 17.09: пакет в паке, образ-кандидат собран, ноды в схеме; модели (7.8 ГБ) не скачаны, прогона не было |
 | `Audio/ND/ND_ACE_Step_1.5_XL_Turbo_T2M_v1_RH` | ND, правленый | пакетов не нужно (ядро + Easy-Use, mxToolkit, KJNodes, basic_data_handling) | 17.09: **прогон прошёл**, MP3 на выходе; LM аудиокодов 27 с, диффузия 8 шагов 5 с |
 | `Audio/ND/ND_MiniMax_Music_3_RH` | шаблон ComfyUI из старого toolbox | пакетов не нужно (только ядро) | 17.09: пути моделей поправлены, задание собирается; прогона не было |
 | `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v2.0` | ND | + `ComfyUI-MiniMax-H3-LongMedia` | 16.09: готовый воркфлоу автора на LongMedia, всё остальное уже есть; ждёт перезапуска и прогона |
@@ -225,6 +225,44 @@ carve-out VRAM снова не используется. GPU занят в ср�
 | 4 | INT8-аттеншен выключить (тумблер `comfy_kitchen_attention` на `#9425`) | проверяет, не наша ли оптимизация даёт шум | дорого: без INT8 шаг был в 5.25 раза медленнее |
 
 Шаг 4 делаем последним: он проверяет наше собственное изменение, но стоит нескольких часов прогона.
+
+## Аудио: YuE2 (текст в песню, модель 3B)
+
+Воркфлоу `ND_YuE2_T2M_v1.2_no_mtp` (файл от 17.09, в папке автора на диске его нет). Единственный новый пакет —
+`ComfyUI-FL-YuE2` (filliptm): узлы `FL_YuE2_ModelLoader` → `FL_YuE2_Plan` (по стилю и тексту сочиняет
+ABC-партитуру: мелодия + аккорды) → `FL_YuE2_Render` (авторегрессия музыкальных токенов + акустические
+латенты midpoint-солвером, `acoustic_steps`) → `FL_YuE2_Decode` (VAE, 48 кГц стерео). Воркфлоу сохранён на
+b5af3e6/16d0c0f, в пак взят HEAD 8042212: между ними только обучение LoRA, входы инференс-нод не менялись.
+Зависимости пакета — `tiktoken`, `safetensors`, `filelock`; но обучающие ноды импортируют `soundfile` при
+загрузке, а в ядре его нет (ядро на torchaudio/av) — добавлен в `pip.extra` modpack.yaml.
+
+Остальное — ядро и уже стоящие пакеты (Easy-Use, basic_data_handling, LLM-text-processor). Генератор текста —
+подграф `Lyrics Generator` на `LLMTextProcessor`, тот же, что в VVJ; виджеты совпадают с нашей схемой один в один.
+
+Правки в копии `_RH`: только модель LLM на внешней ноде `#27` — `Gemma4-26B-A4B…` (у нас нет) →
+`Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced-Q4_K_M.gguf` (есть в `LLM/`). Автор рекомендует для генератора
+reasoning=on; на `#27` это пока список on/off, тумблер как в VVJ — после прогона.
+
+### Что нужно для первого прогона
+
+- Модели `YuE2-3B` и `YuE2-Vae` (~7.8 ГБ, m-a-p на HF, ревизии зашиты в пакет, sha256 сверяется) качает сама нода
+  загрузчика при включённом `auto_download_model` на ноде `#12` (у автора **выключен**). Кладёт в `/models/yue2/…`,
+  то есть в `/mnt/data/AI_Models/ComfyUI/yue2/` — запись в `/models` уже есть. Докачка после обрыва — повторной
+  постановкой в очередь.
+- Проверка GPU в пакете написана под NVIDIA, но условие общее (устройство `cuda` + BF16) и на ROCm проходит;
+  операция ядра `comfy_kitchen.rms_rope_split_half` в v0.35.1 есть. Всё это — по коду, прогоном не подтверждено
+  (`node-policy`: `FL_YuE2_ModelLoader`, verified: docs).
+
+### Параметры на внешних нодах
+
+| Нода | Пункт | Что делает |
+|---|---|---|
+| `#12` Processor | `quality` fast / normal / best | `acoustic_steps` 16 / 40 / 64 (значения на внутренней ноде Render перекрываются связью) |
+| `#12` Processor | `max_duration` 1–8 мин | верхняя граница длины в секундах, не точная длина; **`8 min.` = 480 с, а у ноды Render максимум 360** — такое задание не пройдёт валидацию, брать до 6 мин |
+| `#12` Processor | `style` | стиль одной строкой: язык, жанр, инструменты, вокал, настроение, темп (здесь BPM в тексте допустим, отдельных полей у YuE2 нет) |
+| `#17` Lyrics | текст с `[Verse]`, `[Chorus]`, `[Bridge]`… | пусто — инструментал |
+| `#27` Lyrics Generator | `Enable Lyrics Generator`, язык, `Add Style Prompt`, запрос, модель, reasoning, seed | LLM пишет текст (и стиль, если включено) по запросу; результат смотреть в `#10` |
+| `#28` Song Seed | seed | один сид на композицию и рендер |
 
 ## Аудио: ACE Step 1.5 XL Turbo (текст в музыку)
 

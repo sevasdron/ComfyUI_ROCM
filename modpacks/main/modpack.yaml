@@ -33,7 +33,8 @@ pip:
     - ultralytics     # ComfyUI-Mickmumpitz-Nodes: только YOLO-детектор (импорт ленивый, с понятной ошибкой); нам нужны AudioExists/ImageExists
     - opencv-python   # поверх opencv-python-headless из ядра: два cv2 в одном venv
     - opencv-contrib-python  # то же; ComfyUI_LayerStyle берёт guidedFilter в try/except и живёт без contrib
-  extra: []           # пакеты, которых нет в requirements нод, но они нужны (например, llama-cpp)
+  extra:              # пакеты, которых нет в requirements нод, но они нужны (например, llama-cpp)
+    - soundfile       # ComfyUI-FL-YuE2 импортирует его при загрузке (обучающие ноды), в requirements пакета нет; ядро живёт на torchaudio/av
 
 # Системные пакеты Fedora для нод (ставятся dnf при сборке образа модпака).
 dnf: []
