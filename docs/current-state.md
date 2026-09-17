@@ -57,7 +57,7 @@
 | `~/comfy/user/default/workflows` | 116 воркфлоу (папки `ND`, `MY`, `IG`, `EXAMPLE`) |
 | `~/comfy-models` → `/mnt/data/AI_Models/ComfyUI` | модели (NTFS) |
 | `~/comfy-outputs` | результаты |
-| `~/comfy/bin/llama.cpp` | llama.cpp b10472 (CPU) для LLMTextProcessor |
+| `~/comfy/bin/llama.cpp` | llama.cpp b10472 (CPU) для LLMTextProcessor; в `main` — `~/ComfyUI/main/bin/llama.cpp/`, Vulkan-сборка через `tools/llama-fetch` |
 | `~/comfy/bin/patches` | патчи и журнал `CHANGES.md` |
 
 ## Кастом-ноды

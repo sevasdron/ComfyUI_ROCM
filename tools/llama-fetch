@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Готовая сборка llama.cpp для ноды LLM Text Processor (патч P3 ищет её в <модпак>/bin/llama.cpp/current/llama-cli).
+#
+#   bash tools/llama-fetch [МОДПАК] [ТЕГ] [ВАРИАНТ]     умолчания: main b10472 vulkan
+#   bash tools/llama-fetch main b10472 cpu              вернуть CPU-сборку (переключает только симлинк current)
+#
+# Скачивает llama-<ТЕГ>-bin-ubuntu-<ВАРИАНТ>-x64.tar.gz с GitHub (ggml-org/llama.cpp), распаковывает в
+# bin/llama.cpp/llama-<ТЕГ>-<ВАРИАНТ>/ и переводит симлинк current. Старые каталоги не трогает — откат
+# это тот же вызов с прежним вариантом. Тег должен совпадать с LLAMA_CPP_RELEASE_TAG в llama_binary.py ноды.
+set -euo pipefail
+name=${1:-main}; tag=${2:-b10472}; flavor=${3:-vulkan}
+COMFY_HOME="${COMFY_HOME:-$HOME/ComfyUI}"
+root="$COMFY_HOME/$name/bin/llama.cpp"
+case "$flavor" in
+    cpu)    asset="llama-$tag-bin-ubuntu-x64.tar.gz" ;;
+    vulkan) asset="llama-$tag-bin-ubuntu-vulkan-x64.tar.gz" ;;
+    *) echo "вариант: cpu | vulkan" >&2; exit 2 ;;
+esac
+dir="$root/llama-$tag-$flavor"
+[ "$flavor" = cpu ] && [ -d "$root/llama-$tag" ] && [ ! -d "$dir" ] && dir="$root/llama-$tag"   # прежняя CPU-раскладка
+mkdir -p "$root"
+if [ ! -x "$dir/llama-cli" ]; then
+    url="https://github.com/ggml-org/llama.cpp/releases/download/$tag/$asset"
+    tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+    echo "скачиваю $url"
+    curl -fL --progress-bar -o "$tmp/$asset" "$url"
+    mkdir -p "$dir"
+    tar -xzf "$tmp/$asset" -C "$dir" --strip-components=1
+    # в архиве всё лежит в build/bin/ — поднимаем на уровень каталога
+    if [ -d "$dir/bin" ] && [ ! -x "$dir/llama-cli" ]; then mv "$dir"/bin/* "$dir"/ && rmdir "$dir/bin"; fi
+    [ -x "$dir/llama-cli" ] || { echo "в архиве нет llama-cli" >&2; ls "$dir"; exit 1; }
+fi
+ln -sfn "$(basename "$dir")" "$root/current"
+echo "current → $(readlink "$root/current")  ($("$dir/llama-cli" --version 2>&1 | head -1))"
+ls "$dir" | grep -E "^libggml-(vulkan|hip|cuda)" || echo "(GPU-библиотек ggml нет — CPU-сборка)"

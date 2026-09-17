@@ -43,4 +43,5 @@ pip:
     - soundfile       # ComfyUI-FL-YuE2 импортирует его при загрузке (обучающие ноды), в requirements пакета нет; ядро живёт на torchaudio/av
 
 # Системные пакеты Fedora для нод (ставятся dnf при сборке образа модпака).
-dnf: []
+dnf:
+  - mesa-vulkan-drivers   # RADV: Vulkan-бэкенд llama.cpp (LLM Text Processor) считает на Radeon 8060S; loader и /dev/dri уже есть
