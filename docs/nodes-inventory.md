@@ -29,7 +29,7 @@ bash tools/comfy build main && bash tools/comfyctl restart               # за�
 | `comfyui-kjnodes` | https://github.com/kijai/ComfyUI-KJNodes | 1.5.0 | без git; P5 (libx264 в предпросмотре), P6 (Sage Attention — bypass) |
 | `comfyui-krea2edit` | https://github.com/lbouaraba/comfyui-krea2edit | 86f886d |  |
 | `comfyui_layerstyle` | https://github.com/chflame163/ComfyUI_LayerStyle | 2.0.40 | без git |
-| `ComfyUI-LLM-text-processor` | https://github.com/KingManiya/ComfyUI-LLM-text-processor | 65983de | правки: 1 файл — P3 (Linux + локальный `llama-cli`); P7 конфликт ID с `_mtp_ND` |
+| `ComfyUI-LLM-text-processor` | https://github.com/KingManiya/ComfyUI-LLM-text-processor | 65983de | в `main` с 17.09 заменён форком `Kvento/ComfyUI-LLM-text-processor_mtp_ND` (9976aed, тот же тип ноды + виджет `mtp`); правки: 1 файл — P3 (Linux + локальный `llama-cli`); P7 конфликт ID с `_mtp_ND` |
 | `ComfyUI-LLM-text-processor_mtp_ND.disabled` | https://github.com/Kvento/ComfyUI-LLM-text-processor_mtp_ND | 9976aed | отключён (P7); если нужен — под своим ID класса |
 | `comfyui-lora-manager` | https://github.com/willmiao/ComfyUI-Lora-Manager | 1.2.1 | без git; 3.9 ГБ кэша Civitai в каталоге |
 | `comfyui-mickmumpitz-nodes` | https://github.com/mickmumpitz/ComfyUI-Mickmumpitz-Nodes | 4d5ff7c |  |

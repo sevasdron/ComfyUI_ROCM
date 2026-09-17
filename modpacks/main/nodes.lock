@@ -32,10 +32,6 @@ nodes:
     repo: https://github.com/lbouaraba/comfyui-krea2edit
     ref: 86f886dac23013d88996e3a2e99093ba44d322fb
     patches: []
-  - name: ComfyUI-LLM-text-processor
-    repo: https://github.com/KingManiya/ComfyUI-LLM-text-processor
-    ref: 65983de33681816f856db7e16767da906084c688
-    patches: [llm-text-processor-linux.patch]
   - name: ComfyUI-mxToolkit
     repo: https://github.com/Smirnov75/ComfyUI-mxToolkit
     ref: 7f7a0e584f12078a1c589645d866ae96bad0cc35
@@ -88,3 +84,7 @@ nodes:
     repo: https://github.com/filliptm/ComfyUI-FL-YuE2
     ref: 80422124ef7a7b2132d4ae5da7cdfc7213a5c4f7
     patches: []
+  - name: ComfyUI-LLM-text-processor_mtp_ND
+    repo: https://github.com/Kvento/ComfyUI-LLM-text-processor_mtp_ND
+    ref: 9976aed3a89b306419dd57b6022c0b3588dff8db
+    patches: [llm-text-processor-mtp-linux.patch]

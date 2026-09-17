@@ -1,17 +1,9 @@
-diff --git a/llama_binary.py b/llama_binary.py
-index 0ce9c3e..6dbf63f 100644
---- a/llama_binary.py
-+++ b/llama_binary.py
-@@ -2,6 +2,7 @@ from __future__ import annotations
+diff --git a/nodes.py b/nodes.py
+index 6b24b86..6762c6f 100644
+--- a/nodes.py
++++ b/nodes.py
+@@ -174,6 +174,10 @@ RELEASE_API_URL = (
  
- import fnmatch
- import json
-+import os
- import platform
- import time
- import urllib.request
-@@ -15,6 +16,10 @@ LLAMA_CPP_RELEASE_TAG = "b10472"
- RELEASE_API_URL = f"https://api.github.com/repos/ggml-org/llama.cpp/releases/tags/{LLAMA_CPP_RELEASE_TAG}"
  PACKAGE_ROOT = Path(__file__).resolve().parent
  VENDOR_ROOT = PACKAGE_ROOT / "vendor" / "llama.cpp"
 +# Prebuilt llama-cli for platforms without an automatic download (Linux/ROCm, etc.).
@@ -21,12 +13,12 @@ index 0ce9c3e..6dbf63f 100644
  
  
  @dataclass(frozen=True)
-@@ -52,10 +57,23 @@ def _platform_spec() -> PlatformSpec:
-         return WINDOWS_CUDA_13
+@@ -213,10 +217,23 @@ def _platform_spec() -> PlatformSpec:
+ 
      raise RuntimeError(
          "Automatic llama.cpp binary download currently supports Windows x64 CUDA 13 only. "
--        "Other platforms are intentionally isolated behind the platform mapping for future support."
-+        "Other platforms are intentionally isolated behind the platform mapping for future support. "
+-        "Other platforms require a manually adapted llama.cpp binary setup."
++        "Other platforms require a manually adapted llama.cpp binary setup. "
 +        f"Place a prebuilt llama-cli at {LINUX_DEFAULT_CLI} or set {LOCAL_CLI_ENV}."
      )
  
@@ -44,9 +36,9 @@ index 0ce9c3e..6dbf63f 100644
 +
 +
  def _json_get(url: str) -> dict:
-     request = urllib.request.Request(url, headers={"User-Agent": "ComfyUI-LLM-text-processor"})
-     with urllib.request.urlopen(request, timeout=30) as response:
-@@ -190,6 +208,10 @@ def _extract_assets(assets: list[dict], install_dir: Path) -> None:
+     request = urllib.request.Request(
+         url,
+@@ -375,6 +392,10 @@ def _extract_assets(assets: list[dict], install_dir: Path) -> None:
  
  
  def ensure_llama_cli_paths() -> LlamaCliPaths:
@@ -55,5 +47,5 @@ index 0ce9c3e..6dbf63f 100644
 +        return local
 +
      spec = _platform_spec()
+ 
      existing = _existing_install(spec)
-     if existing is not None:
