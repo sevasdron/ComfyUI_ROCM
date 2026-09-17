@@ -19,6 +19,7 @@
 | `Image/ND/ND_Krea2_Ultimate_TI2I_v1.4` | ND, Influencer Build v4.7 | basic_data_handling, Easy-Use, Impact-Pack, Inpaint-CropAndStitch, KJNodes, krea2edit, LLM-text-processor (P3), mxToolkit, Comfyroll, rgthree | 15.09: образ `v0.35.1-66685a5` в stable, все 58 типов нод есть; прогон — ждёт выбора CLIP |
 | `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v3.0_WIP_1` | ND, Influencer Build v4.7 | + AudioBatch, Mickmumpitz, Spectrum-MiniMax-H3, LayerStyle, Fantastic-MiniMaxH3-PromptBuilder, SolAttn_triton, Minimax_h3_latent_Upscaler (P4) | 16.09: ноды добавлены, файл воркфлоу — с внешнего диска, когда примонтирован |
 | `ND_YuE2_T2M_…` | ND | — | очередь |
+| `Audio/ND/ND_ACE_Step_1.5_XL_Turbo_T2M_v1_RH` | ND, правленый | пакетов не нужно (ядро + Easy-Use, mxToolkit, KJNodes, basic_data_handling) | 17.09: пути моделей и sage_attention поправлены, прогона не было |
 | `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v2.0` | ND | + `ComfyUI-MiniMax-H3-LongMedia` | 16.09: готовый воркфлоу автора на LongMedia, всё остальное уже есть; ждёт перезапуска и прогона |
 | `Video/ND/ND_MiniMax_H3_Ultimate_VVJ_v2.1_RH` | ND, правленый | + LongMedia | 16.09: Sage-патч заменён нодой ядра, `Sigmas Split` → `SplitSigmas`; недостающих нод нет, ждёт прогона (оригинал рядом, удалить после тестов) |
 
@@ -223,3 +224,22 @@ carve-out VRAM снова не используется. GPU занят в ср�
 | 4 | INT8-аттеншен выключить (тумблер `comfy_kitchen_attention` на `#9425`) | проверяет, не наша ли оптимизация даёт шум | дорого: без INT8 шаг был в 5.25 раза медленнее |
 
 Шаг 4 делаем последним: он проверяет наше собственное изменение, но стоит нескольких часов прогона.
+
+## Аудио: ACE Step 1.5 XL Turbo (текст в музыку)
+
+Воркфлоу `ND_ACE_Step_1.5_XL_Turbo_T2M_v1`. **Новых пакетов не требует вообще**: 17 типов нод, все из ядра
+и уже установленных (Easy-Use, mxToolkit, KJNodes, basic_data_handling). Правки в копии `_RH`:
+
+| Что | Было | Стало | Почему |
+|---|---|---|---|
+| `model_name` | `ACE1.5\acestep_v1.5_xl_turbo_bf16` | `AceStep/acestep_v1.5_xl_turbo_bf16` | виндовый путь автора; у нас модель лежит в `AceStep/` |
+| `clip_name1/2` | `qwen_0.6b_ace15`, `qwen_4b_ace15` | `ACEmusic/…` | у нас энкодеры в подпапке `ACEmusic` |
+| `sage_attention` | `auto` | **`disabled`** | на ROCm пакета нет, `auto` роняет прогон (P6) |
+| `weight_dtype` | `fp8_e5m2` | `default` | fp8 на gfx1151 эмулируется (`emulated ops: float8_e5m2`), а модель и так bf16 — квантование поверх только замедляет |
+
+Модели на месте: `AceStep/acestep_v1.5_xl_turbo_bf16.safetensors`, `ace_1.5_vae.safetensors`,
+`ACEmusic/qwen_0.6b_ace15.safetensors`, `ACEmusic/qwen_4b_ace15.safetensors`.
+
+Параметры генерации: длительность ползунком в минутах (сейчас 2), KSampler 8 шагов, cfg 1 (turbo-модель),
+выход в MP3. Кандидат на ускорение после первого прогона — нода ядра `Model Attention Backend`
+с backend `comfy kitchen attention` перед `ModelSamplingAuraFlow`, как на MiniMax H3.
