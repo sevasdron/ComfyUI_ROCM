@@ -5,7 +5,7 @@ name: main
 
 # Тег ядра comfy-core, на котором собран текущий stable. Меняет `tools/comfy promote`;
 # `tools/comfy build main --core REF` и `update --to REF` собирают candidate на другом.
-core: v0.35.1
+core: v0.36.0
 
 # Порт stable на хосте. Candidate поднимается на port+1 (8101).
 port: 8100
