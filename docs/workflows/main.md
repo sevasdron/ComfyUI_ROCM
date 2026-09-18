@@ -326,16 +326,27 @@ Piano Roll; выставить Tempo, при желании поправить �
 
 ### Системный промпт под YuE2 для усилителя
 
-`modpacks/main/prompts/YuE2 Music.txt` (копия установлена в `/mnt/data/AI_Models/ComfyUI/LLM/prompts/`, появляется в
-списке `system_prompt` ноды после перезапуска или обновления списка). Составлен по README YuE2 и карточке модели
-(единственные документированные примеры тегов: «English, jazz-funk, warm lead vocal, Rhodes, bass and drums»,
-«Jazz, expressive lead vocal, piano, tenor saxophone, upright bass, brushed drums, no guitar, spacious modern harmony»)
-и по формату промпта в коде пакета (`[Tags]` + `[Lyrics]`). Выход двумя блоками: `### STYLE` — одна строка
-6–12 англ. дескрипторов, первым язык текста, допустимы отрицания («no guitar»), в конце слово темпа + BPM;
-`### LYRICS` — секции `[Verse]/[Chorus]/[Bridge]/[Outro]`, 4–8 строк по 6–10 слогов, внутри секций только то,
-что поётся, инструментальные описания в скобках только в `[Intro]/[Solo]/[Outro]` (как в авторском шаблоне).
-Не подключён: в подграфе `Lyrics Generator` текст системного промпта автора вклеивается в запрос нодами
-`#38`/`#61`, наш файл ставится пунктом `system_prompt` на ноде `#9`, а те тексты тогда надо опустошить.
+`modpacks/main/prompts/YuE2 Music.txt` (копия в `/mnt/data/AI_Models/ComfyUI/LLM/prompts/`). Версия 18.09 переписана
+по первоисточникам, а не по пересказу README:
+
+- **Официальное руководство авторов** — каталог `skills/yue2-music` в репозитории YuE (bd90e4c): «Put genre,
+  instruments, vocal character, language and intended tempo in style; put section tags and actual words in lyrics.
+  Keep implementation notes out of lyrics»; полей `bpm`, `negative_prompt`, `reference_audio`, `phonemes` в запросе
+  нет, «put tempo and meter in the ABC and describe them consistently in the style». Оттуда же три эталонных
+  стиля (язык первым, вокал, жанр, BPM, инструменты, отрицания, «clear diction», «natural English phrasing»).
+- **99 примеров демо-сайта** (`map-yue2.github.io`, файл `data/cases.js`): 70 жанров, языки English 56, Chinese 31,
+  Japanese 9, по одному Russian/Spanish/Korean; стиль — список тегов (медиана 16 слов) либо проза в 2–4
+  предложения про развитие аранжировки (28 из 99); BPM указан в 11, тональность ни в одном; медиана 44
+  поющихся строки на песню; указания по аранжировке и голосам авторы пишут **внутри тега секции** после двоеточия
+  или тире (`[Intro: Piano & Flute]`, `[Verse 1 – Male voice (raspy, relaxed)]`), дуэт размечают `(male)`/`(female)`.
+
+Что изменилось против первой версии: добавлена прозаическая форма стиля, словарь 70 продемонстрированных жанров,
+диапазоны BPM по жанрам, дикция/фразировка, расширен набор секций (`[Interlude]`, `[Instrumental Break]`,
+`[Guitar Solo]`, `[Final Chorus]`, `[End]`), указания перенесены из отдельных строк в скобках в теги секций
+(в первой версии я советовал скобки — у авторов это бэк-вокал и пометки голоса), длина песни пересчитана
+(45–55 строк ≈ 3.5–4 мин вместо «30–40»), запрещены веса и псевдосинтаксис. Не подключён: в подграфе
+`Lyrics Generator` системный текст автора вклеивается в запрос нодами `#38`/`#61`; наш файл ставится пунктом
+`system_prompt` на внутренней LLM-ноде, а те тексты тогда опустошаются.
 
 ### Параметры на внешних нодах
 
