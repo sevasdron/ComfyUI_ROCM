@@ -88,3 +88,7 @@ nodes:
     repo: https://github.com/Kvento/ComfyUI-LLM-text-processor_mtp_ND
     ref: 9976aed3a89b306419dd57b6022c0b3588dff8db
     patches: [llm-text-processor-mtp-linux.patch]
+  - name: ComfyUI-Pixaroma
+    repo: https://github.com/pixaroma/ComfyUI-Pixaroma
+    ref: a63a793842dfd59013d0df0e749ffd4441678307
+    patches: []
