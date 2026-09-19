@@ -15,6 +15,7 @@
 #   bash tools/comfy update NAME [--to REF|latest] ядро REF → модпак :candidate → smoke на port+1 с копией user/ → diff схемы
 #   bash tools/comfy promote NAME                  бэкап user/ → candidate→stable, stable→prev, core: в modpack.yaml
 #   bash tools/comfy rollback NAME [--user latest|ФАЙЛ]   stable↔prev; --user: вернуть user/ из бэкапа
+#   bash tools/comfy prune NAME [--keep N] [--apply]  старые теги модпака и ненужные comfy-core; без --apply только показ
 #   bash tools/comfy workflow deps ФАЙЛ.json [...]  каких нод нет в схеме, пакеты из справочника, замены по node-policy.yaml
 #   bash tools/comfy attn-bench [NAME]            бэкенды аттеншена на этом GPU: скорость, память, точность
 #
@@ -442,6 +443,71 @@ cmd_rollback() {
     running_note "$name"
 }
 
+# ---------- prune ----------
+# Оставляем: каналы stable/prev/candidate, версионные теги тех же образов, comfy-core их ядер, strix-runtime.
+# Чужие образы (my-comfy, kyuz0 — резервный toolbox) только показываем: их судьбу решает пользователь.
+cmd_prune() {
+    local name=${1:?имя модпака}; shift
+    local apply=0 keep=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --apply) apply=1; shift ;;
+            --keep)  keep=${2:?--keep N}; shift 2 ;;
+            *) die "prune NAME [--keep N] [--apply]" ;;
+        esac
+    done
+    load_modpack "$name"
+    local img; img=$(mp_image "$name")
+    local keep_ids="" keep_cores="" ch id ref
+    for ch in stable prev candidate; do
+        podman image exists "$img:$ch" || continue
+        id=$(podman inspect -f '{{.Id}}' "$img:$ch")
+        ref=$(podman inspect -f '{{index .Labels "comfy.core.ref"}}' "$img:$ch")
+        keep_ids="$keep_ids $id"; keep_cores="$keep_cores $ref"
+        echo "оставляю: $img:$ch (${id:0:12}, ядро ${ref:-?})"
+    done
+    [ -n "$keep_ids" ] || die "у $img нет ни одного канала — чистить нечего"
+
+    local -a drop=()
+    local tag n=0
+    # версионные теги модпака, от новых к старым; первые --keep штук «лишних» тоже оставляем
+    while read -r tag id; do
+        case "$tag" in *:stable|*:prev|*:candidate) continue ;; esac
+        if [[ " $keep_ids " == *" $id "* ]]; then echo "оставляю: $tag (тот же образ, что канал)"; continue; fi
+        if [ "$n" -lt "$keep" ]; then n=$((n + 1)); echo "оставляю: $tag (--keep)"; continue; fi
+        drop+=("$tag")
+    done < <(podman images --sort created --format '{{.Repository}}:{{.Tag}} {{.Id}}' --no-trunc "$img" | sed 's/sha256://')
+    # базовые образы ядра, которые не нужны ни одному из оставленных
+    while read -r tag; do
+        ref=${tag##*:}
+        if [[ " $keep_cores $MP_CORE " == *" $ref "* ]]; then echo "оставляю: $tag (ядро оставленных образов)"; continue; fi
+        drop+=("$tag")
+    done < <(podman images --format '{{.Repository}}:{{.Tag}}' localhost/comfy-core)
+
+    echo
+    local before; before=$(df --output=avail -BG / | tail -1 | tr -dc 0-9)
+    if [ ${#drop[@]} -eq 0 ]; then
+        echo "лишних тегов нет"
+    else
+        echo "к удалению (${#drop[@]}):"
+        podman images --format '{{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' \
+            | grep -F -f <(printf '%s\t\n' "${drop[@]}") | sed 's/^/   /'
+    fi
+    echo "не трогаю (чужие, решает пользователь):"
+    podman images --format '{{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}' \
+        | grep -v "^localhost/comfy-\|^localhost/strix-runtime\|^<none>\|fedoraproject" | sed 's/^/   /' || true
+    echo "безымянные слои сборок: $(podman images -f dangling=true -q | wc -l) шт."
+
+    if [ "$apply" -ne 1 ]; then
+        echo; echo "это был показ; удалить: bash tools/comfy prune $name$([ "$keep" -gt 0 ] && echo " --keep $keep") --apply   (свободно на /: ${before} ГБ)"
+        return 0
+    fi
+    for tag in "${drop[@]}"; do podman rmi "$tag" >/dev/null && echo "удалён: $tag"; done
+    podman image prune -f >/dev/null
+    local after; after=$(df --output=avail -BG / | tail -1 | tr -dc 0-9)
+    echo "свободно на /: ${before} → ${after} ГБ"
+}
+
 # Бэкенды аттеншена на живом GPU (docs/rocm-accelerators.md). Скрипт передаём внутрь: в образе его нет.
 cmd_attn_bench() {
     local c="comfy-${1:-main}"
@@ -462,6 +528,7 @@ case "${1:-}" in
     update)   shift; cmd_update "$@" ;;
     promote)  shift; cmd_promote "$@" ;;
     rollback) shift; cmd_rollback "$@" ;;
+    prune)    shift; cmd_prune "$@" ;;
     workflow) [ "${2:-}" = deps ] || die "workflow: deps ФАЙЛ.json [...] [--modpack NAME]"; python3 "$ROOT/tools/workflow-deps.py" "${@:3}" ;;
     attn-bench) cmd_attn_bench "${2:-main}" ;;
     *) sed -n '2,33p' "$0"; exit 1 ;;
