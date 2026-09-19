@@ -2,6 +2,11 @@
 
 Снимок на 14.09.2026. Это то, от чего уходим, и то, что нельзя сломать по дороге.
 
+> **20.09.2026: описанный здесь toolbox удалён** (контейнер `strix-halo-comfyui`, образ kyuz0, снимки `my-comfy`). Документ остаётся
+> как справка: откуда взяты версии ROCm/torch, ключи запуска и состав нод. Уникальные файлы контейнера (воркфлоу
+> `minimax_h3_t2v_turbo.json`, `comfy.settings.json`) — в `var/backups/toolbox-strix-halo-comfyui/`. Образ при нужде
+> возвращается `podman pull docker.io/kyuz0/amd-strix-halo-comfyui:latest` (16 ГБ).
+
 ## Контейнер
 
 | | |
