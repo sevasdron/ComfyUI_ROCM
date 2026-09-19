@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Самописец памяти для единой памяти Strix Halo: что занято во время прогонов и где граница до OOM.
+#
+#   bash tools/memwatch [--every СЕК] [--name comfy-main]     писать var/logs/memwatch-ДАТА.tsv до Ctrl+C
+#   bash tools/memwatch report [ФАЙЛ.tsv]                      пики и минимумы по файлу (по умолчанию последний)
+#
+# Снаружи процесса, сервер не нагружает (полный отчёт «кто держит» — curl /rh/memory, он тяжёлый).
+# Колонки, ГиБ: время | gtt — память GPU из общей ОЗУ | vram — carve-out | avail — доступно ОС |
+# swap — занято в zram | rss — обычная память процесса ComfyUI | queue — идёт ли прогон.
+# ВАЖНО: gtt и rss делят одни и те же 93 ГиБ; OOM-kill приходит, когда avail → 0 и swap исчерпан.
+set -euo pipefail
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+LOGS="$ROOT/var/logs"
+
+gib() { awk -v v="$1" 'BEGIN{printf "%.1f", v/1073741824}'; }
+sysfs() { cat /sys/class/drm/card*/device/"$1" 2>/dev/null | head -1; }
+
+report() {
+    local f=${1:-$(ls -1t "$LOGS"/memwatch-*.tsv 2>/dev/null | head -1)}
+    [ -f "$f" ] || { echo "memwatch: нет файла журнала" >&2; exit 1; }
+    echo "$f"
+    awk -F'\t' 'NR==1{next}
+        { n++; if($2>gtt){gtt=$2;tg=$1} if($6>rss){rss=$6;tr=$1} if($5>sw){sw=$5}
+          if(min==""||$4<min){min=$4;tm=$1;mg=$2;mr=$6;ms=$5} if($7=="run")run++ }
+        END{ printf "замеров %d (из них в прогоне %d)\n", n, run
+             printf "пик GTT        %5.1f ГиБ  в %s\n", gtt, tg
+             printf "пик RSS        %5.1f ГиБ  в %s\n", rss, tr
+             printf "пик swap       %5.1f ГиБ\n", sw
+             printf "минимум avail  %5.1f ГиБ  в %s  (в этот момент GTT %.1f, RSS %.1f, swap %.1f)\n", min, tm, mg, mr, ms }' "$f"
+}
+
+if [ "${1:-}" = report ]; then report "${2:-}"; exit 0; fi
+
+every=5; name=comfy-main
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --every) every=$2; shift 2 ;;
+        --name)  name=$2; shift 2 ;;
+        *) sed -n '2,11p' "$0"; exit 1 ;;
+    esac
+done
+port=$(podman port "$name" 2>/dev/null | sed -n 's/.*:\([0-9]*\)$/\1/p' | head -1); port=${port:-8100}
+
+mkdir -p "$LOGS"
+out="$LOGS/memwatch-$(date +%Y%m%d-%H%M%S).tsv"
+printf 'time\tgtt\tvram\tavail\tswap\trss\tqueue\n' > "$out"
+echo "memwatch → $out (каждые ${every} с, Ctrl+C — стоп; итог: bash tools/memwatch report)"
+trap 'echo; report "$out"' EXIT
+while :; do
+    pid=$(podman inspect -f '{{.State.Pid}}' "$name" 2>/dev/null || echo 0)
+    rss=0
+    if [ "$pid" -gt 0 ] 2>/dev/null; then
+        # главный python — потомок init-процесса контейнера; берём самый большой RSS в его группе
+        rss=$(ps -o rss= --ppid "$pid" -p "$pid" 2>/dev/null | sort -n | tail -1 | awk '{print $1*1024}')
+    fi
+    avail=$(awk '/MemAvailable/{print $2*1024}' /proc/meminfo)
+    swap=$(awk '/SwapTotal/{t=$2}/SwapFree/{f=$2}END{print (t-f)*1024}' /proc/meminfo)
+    q=$(curl -s -m 2 "http://127.0.0.1:$port/queue" 2>/dev/null | grep -q '"queue_running": \[\]' && echo idle || echo run)
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(date +%H:%M:%S)" "$(gib "$(sysfs mem_info_gtt_used)")" \
+        "$(gib "$(sysfs mem_info_vram_used)")" "$(gib "$avail")" "$(gib "$swap")" "$(gib "${rss:-0}")" "$q" >> "$out"
+    sleep "$every"
+done
