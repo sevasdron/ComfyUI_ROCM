@@ -44,19 +44,20 @@
 
 ### 2. Нодпак ROCm Halo (`comfyui-rocm-halo`)
 
-Сейчас: 7 нод (`RH Cast to float32`, `RH VAE Precision`, `RH Mesh Info`, `RH Trellis2 Upsample Stage`,
-`RH Acceleration`, `RH H3 Mode`, `RH Text Fallback`) + хук подсказки bf16→numpy + фильтр лога `log_quiet`.
+Сейчас (20.09): 11 нод — `RH Cast to float32`, `RH VAE Precision`, `RH Mesh Info`, `RH Trellis2 Upsample Stage`,
+`RH Acceleration`, `RH H3 Mode`, `RH Text Fallback`, `RH Music Target`, `RH Music Prompt Parse`, `RH Music Pick`, `RH Free Memory`;
+плюс хук подсказки bf16→numpy, фильтр лога `log_quiet`, `memory_tools` (маршруты `/rh/memory`, `/rh/free`, хуки освобождения).
 Node API V3, без JS. Локальный git, в `nodes.lock` как `repo: local`.
 
 | Что | Откуда | Состояние |
 |---|---|---|
-| Нода разбора ответа усилителя на поля (секции `### STYLE / LYRICS / TAGS / META`) | направление 1 | не начато |
+| Нода разбора ответа усилителя на поля (секции `### STYLE / LYRICS / TAGS / META`) | направление 1 | ✅ 18.09: `RH Music Prompt Parse` + `RH Music Target` + `RH Music Pick`; текстовая часть проверена прогоном, YuE2 и ACE Step — полным прогоном пользователя |
 | Нода обратного перевода промпта | идея 16.09 | не начато; движок — та же LLM вторым вызовом |
 | Нода(ы) разбора референс-аудио | направление 1 | не начато |
 | `RH Acceleration`: второй тумблер (Triton-бэкенд kitchen), sol-attn пунктом | просьба 16.09 | есть только INT8-аттеншен и отчёт о бэкендах |
 | `RH Text Fallback` встроить в VVJ и музыкальные воркфлоу | 16.09 | написана, не встроена |
 | Хостинг пака и форков нод: GitHub (какой аккаунт) или локальные bare-репозитории | открытый вопрос этапа 3 | не решено; пока пак живёт только на этой машине |
-| Тесты нод пака, версия, README | — | нет |
+| Тесты нод пака, версия, README | — | `tests/test_music.py` (54 случая, в образе); тесты `RH H3 Mode` и `memory_tools` — в работе 20.09; README ведётся |
 
 ### 3. Образ под железо (gfx1151, ROCm 7.15, 128 ГБ общей памяти)
 
