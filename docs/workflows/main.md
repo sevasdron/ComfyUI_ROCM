@@ -9,24 +9,24 @@
 У каждой записи политики есть поле `verified`: `run` — подтверждено настоящим прогоном, `bench` — только синтетикой,
 `docs` — только по документации. Всё, что не `run`, проверяем на первом же прогоне и обновляем.
 
-Раскладка в `~/ComfyUI/main/user/default/workflows/`: категория автора, внутри — папка автора
-(`Image/ND/`, `Video/ND/`, `Audio/ND/`…), свои воркфлоу — в корне категории.
+Раскладка в `~/ComfyUI/main/user/default/workflows/` (переложена пользователем 20.09): нумерованная категория → модель → папка автора
+(`1_3D/`, `2_Image/Krea2/ND/`, `3_Audio/{AceStep,YuE2,MiniMax H3}/ND/`, `4_Video/MiniMax H3/ND/`, `5_Unsorted/` — неразобранное); свои воркфлоу — в папке категории или модели.
 Исходники воркфлоу ND (не правленные) — `/run/media/ai/ComfyUI/ComfyUI_Influencer_Build_v4.7/ComfyUI/user/default/workflows/`.
 
 | Воркфлоу | Источник | Пакеты нод | Статус |
 |---|---|---|---|
 | `3d_pixal3d_trellis2_image_to_model` | шаблон ComfyUI | ядро + ROCm Halo (`#94` RH Trellis2 Upsample Stage, `#324` RH Cast to float32) | работает (res 32/64) |
-| `Image/ND/ND_Krea2_Ultimate_TI2I_v1.4` | ND, Influencer Build v4.7 | basic_data_handling, Easy-Use, Impact-Pack, Inpaint-CropAndStitch, KJNodes, krea2edit, LLM-text-processor (P3), mxToolkit, Comfyroll, rgthree | 15.09: образ `v0.35.1-66685a5` в stable, все 58 типов нод есть; прогон — ждёт выбора CLIP |
-| `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v3.0_WIP_1` | ND, Influencer Build v4.7 | + AudioBatch, Mickmumpitz, Spectrum-MiniMax-H3, LayerStyle, Fantastic-MiniMaxH3-PromptBuilder, SolAttn_triton, Minimax_h3_latent_Upscaler (P4) | 16.09: ноды добавлены, файл воркфлоу — с внешнего диска, когда примонтирован |
-| `Audio/ND/ND_YuE2_T2M_v1.2_RH` | ND, файл `ND_YuE2_T2M_v1.2_no_mtp` (17.09), правленый | + `ComfyUI-FL-YuE2` (8042212; `soundfile` в pip.extra) | 17.09: **прогон прошёл** на ROCm, `output/Songs/YuE2_00001.flac`; модели докачаны нодой (13 мин), сама генерация ≈12 мин при авторских настройках |
-| `Audio/ND/ND_YuE2_T2M_v1.2_MTP_RH` | ND, файл `ND_YuE2_T2M_v1.2` (версия с MTP), правленый | те же + форк `ComfyUI-LLM-text-processor_mtp_ND` (заменил LLM-text-processor, P3 перенесён) | 17.09: голова MTP переписана на `MTP/…`, проигрыватель добавлен; прогона не было |
-| `Audio/RH_YuE2_BPM_Score_Editor` | свой (18.09), на нодах FL-YuE2 | те же | Compose → Piano Roll (Tempo, правка нот) → Compose 2 → Render; задание собирается, прогона не было |
-| `Audio/RH_Music_Style_Generator` | свой (18.09), построен средствами фронтенда; плоский, без подграфов | ядро **v0.36.0** + ROCm Halo (`#36` RH Music Target, `#7` RH Music Prompt Parse, `#34` RH Music Pick, `#6` RH Text Fallback), LLM-text-processor (`#5`), FL-YuE2, KJNodes, Easy-Use | идея (`#2`) → усилитель `#5` с системным промптом выбранной модели → разбор `#7` → ветка ACE Step / YuE2 / MiniMax (параметры веток из рабочих ND-воркфлоу) → `#34` → `#35` flac. 18.09, кандидат на 8101: текстовая часть прошла для всех трёх моделей (verified: run); **генерация музыки не запускалась** (verified: no). Свой текст песни `#3` идёт только в `lyrics_fallback` (нужен MiniMax: его усилитель текст не пишет) |
-| `Audio/Comfy/YuE2_text2audio`, `YuE2_ref2audio` | официальные шаблоны ComfyUI (от пользователя, 18.09) | только ядро **v0.36.0+** и модели `Comfy-Org/YuE2` | ждут обновления ядра (кандидат v0.36.0 собирается) и моделей |
-| `Audio/ND/ND_ACE_Step_1.5_XL_Turbo_T2M_v1_RH` | ND, правленый | пакетов не нужно (ядро + Easy-Use, mxToolkit, KJNodes, basic_data_handling) | 17.09: **прогон прошёл**, MP3 на выходе; LM аудиокодов 27 с, диффузия 8 шагов 5 с |
-| `Audio/ND/ND_MiniMax_Music_3_RH` | шаблон ComfyUI из старого toolbox | пакетов не нужно (только ядро) | 17.09: пути моделей поправлены, задание собирается; прогона не было |
-| `Video/ND/ND_MiniMax_H3_Ultimate_2-Stages_v2.0` | ND | + `ComfyUI-MiniMax-H3-LongMedia` | 16.09: готовый воркфлоу автора на LongMedia, всё остальное уже есть; ждёт перезапуска и прогона |
-| `Video/ND/ND_MiniMax_H3_Ultimate_VVJ_v2.1_RH` | ND, правленый | + LongMedia | 16.09: Sage-патч заменён нодой ядра, `Sigmas Split` → `SplitSigmas`; недостающих нод нет, ждёт прогона (оригинал рядом, удалить после тестов) |
+| `2_Image/Krea2/ND/ND_Krea2_Ultimate_TI2I_v1.4` | ND, Influencer Build v4.7 | basic_data_handling, Easy-Use, Impact-Pack, Inpaint-CropAndStitch, KJNodes, krea2edit, LLM-text-processor (P3), mxToolkit, Comfyroll, rgthree | 15.09: образ `v0.35.1-66685a5` в stable, все 58 типов нод есть; прогон — ждёт выбора CLIP |
+| `4_Video/MiniMax H3/ND/ND_MiniMax_H3_Ultimate_2-Stages_v3.0_WIP_1` | ND, Influencer Build v4.7 | + AudioBatch, Mickmumpitz, Spectrum-MiniMax-H3, LayerStyle, Fantastic-MiniMaxH3-PromptBuilder, SolAttn_triton, Minimax_h3_latent_Upscaler (P4) | 16.09: ноды добавлены, файл воркфлоу — с внешнего диска, когда примонтирован |
+| `3_Audio/YuE2/ND/ND_YuE2_T2M_v1.2_RH` | ND, файл `ND_YuE2_T2M_v1.2_no_mtp` (17.09), правленый | + `ComfyUI-FL-YuE2` (8042212; `soundfile` в pip.extra) | 17.09: **прогон прошёл** на ROCm, `output/Songs/YuE2_00001.flac`; модели докачаны нодой (13 мин), сама генерация ≈12 мин при авторских настройках |
+| `3_Audio/YuE2/ND/ND_YuE2_T2M_v1.2_MTP_RH` | ND, файл `ND_YuE2_T2M_v1.2` (версия с MTP), правленый | те же + форк `ComfyUI-LLM-text-processor_mtp_ND` (заменил LLM-text-processor, P3 перенесён) | 17.09: голова MTP переписана на `MTP/…`, проигрыватель добавлен; прогона не было |
+| `3_Audio/YuE2/RH_YuE2_BPM_Score_Editor` | свой (18.09), на нодах FL-YuE2 | те же | Compose → Piano Roll (Tempo, правка нот) → Compose 2 → Render; задание собирается, прогона не было |
+| `3_Audio/RH_Music_Style_Generator` | свой (18.09), построен средствами фронтенда; плоский, без подграфов | ядро **v0.36.0** + ROCm Halo (`#36` RH Music Target, `#7` RH Music Prompt Parse, `#34` RH Music Pick, `#6` RH Text Fallback), LLM-text-processor (`#5`), FL-YuE2, KJNodes, Easy-Use | идея (`#2`) → усилитель `#5` с системным промптом выбранной модели → разбор `#7` → ветка ACE Step / YuE2 / MiniMax (параметры веток из рабочих ND-воркфлоу) → `#34` → `#35` flac. 18.09, кандидат на 8101: текстовая часть прошла для всех трёх моделей (verified: run); **генерация музыки не запускалась** (verified: no). Свой текст песни `#3` идёт только в `lyrics_fallback` (нужен MiniMax: его усилитель текст не пишет) |
+| `3_Audio/YuE2/YuE2_text2audio`, `YuE2_ref2audio` | официальные шаблоны ComfyUI (от пользователя, 18.09) | только ядро **v0.36.0+** и модели `Comfy-Org/YuE2` | ждут обновления ядра (кандидат v0.36.0 собирается) и моделей |
+| `3_Audio/AceStep/ND/ND_ACE_Step_1.5_XL_Turbo_T2M_v1_RH` | ND, правленый | пакетов не нужно (ядро + Easy-Use, mxToolkit, KJNodes, basic_data_handling) | 17.09: **прогон прошёл**, MP3 на выходе; LM аудиокодов 27 с, диффузия 8 шагов 5 с |
+| `3_Audio/MiniMax H3/ND/ND_MiniMax_Music_3_RH` | шаблон ComfyUI из старого toolbox | пакетов не нужно (только ядро) | 17.09: пути моделей поправлены, задание собирается; прогона не было |
+| `4_Video/MiniMax H3/ND/ND_MiniMax_H3_Ultimate_2-Stages_v2.0` | ND | + `ComfyUI-MiniMax-H3-LongMedia` | 16.09: готовый воркфлоу автора на LongMedia, всё остальное уже есть; ждёт перезапуска и прогона |
+| `4_Video/MiniMax H3/ND/ND_MiniMax_H3_Ultimate_VVJ_v2.1_RH` | ND, правленый | + LongMedia | 16.09: Sage-патч заменён нодой ядра, `Sigmas Split` → `SplitSigmas`; недостающих нод нет, ждёт прогона (оригинал рядом, удалить после тестов) |
 
 Заметки:
 - Krea2 v1.4 из Influencer Build цел: LoRA-нода `#170 Krea 2 Loras` подключена. Обрыв связей из CHANGES.md §10 был
@@ -306,7 +306,7 @@ ends early` — это не ошибка: трек упёрся в верхню�
 (`FL_YuE2_ScoreEditor`): MIDI-подобный редактор двух мелодий (вокал, инструмент) и аккордов с полем **Tempo**
 (1–1000 BPM), сменой тональности, прослушиванием черновика; на выходе та же ABC-строка. Штатная цепочка из README
 пакета: Compose → Piano Roll (`incoming_score_abc`) → второй Compose (`score_abc`, сам не сочиняет) → Render.
-Собрано 18.09 отдельным воркфлоу **`Audio/RH_YuE2_BPM_Score_Editor`** (построен средствами фронтенда, задание
+Собрано 18.09 отдельным воркфлоу **`3_Audio/YuE2/RH_YuE2_BPM_Score_Editor`** (построен средствами фронтенда, задание
 собирается; прогона не было). Работа в два прохода: заглушить группу «Рендер», запустить — партитура загрузится в
 Piano Roll; выставить Tempo, при желании поправить ноты; включить «Рендер» и запустить ещё раз (первый Compose
 возьмётся из кэша, seed у него fixed). 17.09 я ошибочно написал пользователю, что способа задать BPM нет и нужна
@@ -321,7 +321,7 @@ Piano Roll; выставить Tempo, при желании поправить �
 («154 BPM» в шаблоне) плюс партитура текстом, которую можно править между двумя нодами. Модели другие, одним файлом:
 `Comfy-Org/YuE2` — `checkpoints/yue2_3b_bf16.safetensors` (7.8 ГБ), `checkpoints/yue2_3b_int8_convrot.safetensors`
 (3.96 ГБ), `audio_encoders/sheetsage2_bf16.safetensors` (1.39 ГБ). У нас ядро v0.35.1 — этих нод нет; шаблоны
-пользователя лежат в `Audio/Comfy/YuE2_text2audio.json` и `YuE2_ref2audio.json` и ждут обновления ядра.
+пользователя лежат в `3_Audio/YuE2/YuE2_text2audio.json` и `YuE2_ref2audio.json` и ждут обновления ядра.
 Это же главный кандидат на ускорение: INT8-ConvRot-чекпоинт (ядра convrot есть в HIP-бэкенде comfy-kitchen) и
 стандартный сэмплер, к которому применимы наши ускорители, — проверять прогоном после перехода на v0.36.0.
 
@@ -478,7 +478,7 @@ Piano Roll; выставить Tempo, при желании поправить �
 семплер и параметры. Единственная разница: в позднем файле у ноды кодировщика лишний ключ
 `speak_and_recognation` — след браузерного расширения диктовки, не функция. Взят ранний, чистый.
 
-Копия `Audio/ND/ND_MiniMax_Music_3_RH`: пути моделей переведены на наши подпапки
+Копия `3_Audio/MiniMax H3/ND/ND_MiniMax_Music_3_RH`: пути моделей переведены на наши подпапки
 (`MiniMaxMusic/minimax_music3_dit_fp16`, `…text_encoder_pruned_int8_convrot`, `…dav`), задание собирается.
 Усилителя промпта в шаблоне нет; caption там — структурированный текст вида
 `Global Metadata: Lo-fi hip-hop… Vocal Details… Arrangement…`. Это ровно формат, который выдаёт `MM Music.txt`:
