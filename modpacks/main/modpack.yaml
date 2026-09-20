@@ -21,7 +21,9 @@ models: rw
 
 # Ключи запуска ComfyUI (те же, что были в ~/bin/start_comfy_manager — не терять).
 args:
-  - --disable-mmap
+  # --disable-mmap снят 20.09.2026 на пробу (docs/memory-unified.md): с ним файл весов целиком читается в обычную память —
+  # пик RSS 48 ГиБ при загрузке MiniMax H3 и OOM-kill сервера; без него остаток простоя −5 ГиБ, ACE Step не медленнее.
+  # Вернуть, если холодная загрузка больших моделей с NTFS (FUSE) окажется неприемлемо долгой.
   - --gpu-only
   - --bf16-vae
   - --enable-assets   # база ассетов ядра (user/comfyui.db): индекс файлов models/input/output, /api/assets, регистрация
